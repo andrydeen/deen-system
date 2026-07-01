@@ -1,0 +1,11 @@
+{
+  "name": "deen-system",
+  "owner": { "name": "Deen", "url": "https://github.com/andrydeen" },
+  "plugins": [
+    {
+      "name": "deen",
+      "source": "./plugins/deen",
+      "description": "Bootstrap a personal Deen OS context vault and a session-continuity handoff workflow."
+    }
+  ]
+}
