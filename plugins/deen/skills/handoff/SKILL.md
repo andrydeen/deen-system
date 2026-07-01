@@ -7,7 +7,9 @@ description: Save a compact session handoff note to your Deen OS vault and resto
 
 ## Config
 
-Read `vault_path` from `~/.deen-system/config.md` (frontmatter). If that file is missing, tell the user to run `/deen:setup` first, then continue with `vault_path` = `~/Deen-OS`.
+Read `vault_path` from `~/.deen-system/config.md` (frontmatter). The `vault_path` is already an absolute path (setup expanded any leading `~`), so use it directly in shell commands. If that file is missing, tell the user to run `/deen:setup` first, then continue with `vault_path` = `$HOME/Deen-OS`.
+
+If `handoff_enabled` is `false` in the config, do nothing and stop silently.
 
 Detect the project name:
 

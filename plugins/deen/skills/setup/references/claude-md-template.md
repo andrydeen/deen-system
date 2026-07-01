@@ -1,7 +1,3 @@
----
-os-mode: professional
----
-
 # Deen OS
 
 Personal AI assistant. Vault = Obsidian knowledge base AND operating system. All state lives in markdown files you read, write, and maintain.
@@ -41,6 +37,7 @@ For specifics, read that folder's `CLAUDE.md`.
 ## Commands
 
 - `/deen:setup` — Interactive onboarding to personalize this vault
+- `/deen:handoff` — Save session state at the end of a session, restore it at the start
 
 ## Document Voice
 

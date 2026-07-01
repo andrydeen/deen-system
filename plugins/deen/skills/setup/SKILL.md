@@ -13,7 +13,7 @@ Two phases:
 
 ## Resolving reference file paths
 
-Every `references/<file>.md` below lives in the `references/` directory next to THIS `SKILL.md`. Read them from there. If a Read fails (path differs between harnesses), discover the directory once and reuse it:
+Every `references/<file>.md` below lives in the `references/` directory next to THIS `SKILL.md`. When the `CLAUDE_PLUGIN_ROOT` environment variable is set, references live at `${CLAUDE_PLUGIN_ROOT}/skills/setup/references/` — use that path first. Otherwise, read them relative to this SKILL.md. As a last-resort fallback only, discover the directory using:
 
 ```bash
 find / -type d -path '*deen/skills/setup/references' 2>/dev/null | head -1
@@ -34,7 +34,7 @@ Then write `~/.deen-system/config.md` (create `~/.deen-system/` if needed):
 ```markdown
 ---
 name: <their name>
-vault_path: <chosen path, e.g. ~/Deen-OS>
+vault_path: <absolute path, e.g. /Users/you/Deen-OS>  # store the expanded absolute path, not a literal ~
 handoff_enabled: true
 ---
 ```
