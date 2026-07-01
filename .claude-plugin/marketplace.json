@@ -1,6 +1,7 @@
 {
   "name": "deen-system",
   "owner": { "name": "Deen", "url": "https://github.com/andrydeen" },
+  "description": "Deen's personal-OS tooling for Claude Code: a context vault bootstrap and a session-handoff workflow.",
   "plugins": [
     {
       "name": "deen",
