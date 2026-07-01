@@ -85,7 +85,7 @@ Run natively in chat. No forms, no widgets. Send one orienting message, then wal
 
 Orienting message (send verbatim, no tool call):
 
-> Twelve categories, in three rounds of four. This isn't a questionnaire, it's a guided brain dump. For each category, dump whatever comes to mind around the bullets, paste a dictation transcript, drop links, or point me at files. Skip anything that doesn't apply. The more you give, the less templated your vault is on day one. Reply "skip all" any time to jump to defaults.
+> Twelve categories, in three rounds of four. This isn't a questionnaire, it's a guided brain dump. For each category, dump whatever comes to mind around the bullets, paste a dictation transcript, drop links, or point me at files. Skip anything that doesn't apply. The more you give, the less templated your vault is from the start. Reply "skip all" any time to jump to defaults.
 
 **Round 1 — You and the business (Q1–Q4)**
 
