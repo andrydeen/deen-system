@@ -40,7 +40,7 @@ It also writes `~/.deen-system/config.md` (your name, vault path) that `/deen:ha
 
 The plugin works on its own, but the full workflow assumes a few free, open companion tools. `/deen:setup` writes a `Resources/getting-started.md` into your vault with the same guidance and exact install steps.
 
-- **[Obsidian](https://obsidian.md/download)** — open your vault folder as a vault to browse it as a linked knowledge base. Recommended plugin: **TaskNotes**. Database views (**Bases**) are built in.
+- **[Obsidian](https://obsidian.md)** — open your vault folder as a vault to browse it as a linked knowledge base. Recommended plugin: **TaskNotes**. Database views (**Bases**) are built in.
 - **[Superpowers](https://github.com/obra/superpowers)** (Jesse Vincent) — disciplined Claude Code workflows (brainstorm → spec → plan → build, TDD, debugging, code review):
   ```
   /plugin marketplace add anthropics/claude-plugins-official

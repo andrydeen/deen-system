@@ -12,7 +12,7 @@ This vault is your **Deen OS**. It works on its own, but the full workflow assum
 
 The vault is plain markdown, so any editor works, but Obsidian turns it into a navigable knowledge base (backlinks, graph view, database tables).
 
-- **Download:** https://obsidian.md/download
+- **Download:** https://obsidian.md
 - **Open this vault:** Obsidian → *Open folder as vault* → select this folder.
 - **Recommended plugin — TaskNotes** (task management): Settings → Community plugins → Browse → search *TaskNotes* → Install → Enable.
 - **Bases** (database/table views over your notes) is built into Obsidian — no plugin needed.
