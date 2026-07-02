@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Save a compact session handoff note to your Deen OS vault and restore context at the start of the next session. Trigger on "handoff", "end of session", "wrap up", "save my progress", "session note"; and on "restore context", "what did we do last time", or starting a session with no clear task. Uses ~/.deen-system/config.md for the vault path.
+description: Save a compact session handoff note to the Deen OS vault at the end of a work session, and restore context at the start of the next one. Invoke ONLY when explicitly requested via the /deen:handoff command or a Deen-qualified phrase such as "deen handoff", "deen wrap up", or "deen restore context". Do NOT auto-trigger on generic phrases like "handoff", "wrap up", "end of session", or "save my progress" on their own, so this never competes with a user's own separate handoff skill. Reads the vault path from ~/.deen-system/config.md.
 ---
 
 # Deen Handoff
