@@ -70,6 +70,7 @@ Read each reference file and write its content verbatim to the vault path:
 | `references/claude-md-intelligence.md` | `<vault>/Intelligence/CLAUDE.md` |
 | `references/claude-md-resources.md` | `<vault>/Resources/CLAUDE.md` |
 | `references/claude-md-skills.md` | `<vault>/Skills/CLAUDE.md` |
+| `references/getting-started.md` | `<vault>/Resources/getting-started.md` |
 
 ### Step A.5: Create the starter Context file
 
@@ -77,7 +78,7 @@ Read `references/context-me.md` and write it to `<vault>/Context/me.md`. That is
 
 ### Step A.6: Confirm bootstrap
 
-Tell the user the structure was created, list the main folders (`Context`, `Projects`, `Daily`, `Resources`, `Skills`, `Intelligence`), note the vault path, mention Obsidian is optional for viewing, and that `/deen:handoff` will use this vault. Then start Phase B.
+Tell the user the structure was created, list the main folders (`Context`, `Projects`, `Daily`, `Resources`, `Skills`, `Intelligence`), note the vault path, mention Obsidian is optional for viewing, and that `/deen:handoff` will use this vault. Also point them to **`Resources/getting-started.md`** — it explains the recommended companion tools (Obsidian, the Superpowers plugin, and gstack) with install links and how they fit together, so they can set up the full workflow, not just the vault. Then start Phase B.
 
 ## Phase B: Onboarding — Guided Brain Dump (conversational)
 
