@@ -147,6 +147,48 @@ First daily note: `Daily/<today>.md` with `type: daily-note`, today's date, and 
 
 Summarize which Context files and how many projects were created, note the vault path, say they can add more context anytime, and suggest a next action based on what they shared.
 
+## Phase C: Offer to set up the recommended environment
+
+After the vault is built, offer to install the companion tools that make the full workflow work (detailed in `Resources/getting-started.md`). Be warm and concrete — this is a favor, not a checklist. Briefly list what each tool is for:
+
+- **Superpowers** — disciplined workflows (plan, TDD, debug, review)
+- **GSD** — phased planning & execution
+- **Context7** — up-to-date library docs while you build
+- **Playwright MCP** — drive a real browser to check functionality
+- **gstack** — browser QA / review / ship
+- **Obsidian** — the app to read this vault (you install this one yourself)
+
+Then ask with one `AskUserQuestion` (header `Environment`):
+- Question: "Want me to set these up for you now? I can install most of them for you; anything I can't (like the Obsidian app) I'll give you the exact steps for."
+- Options: `Yes — install what you can` · `Let me pick which ones` · `No — I'll do it myself`
+
+**If they say yes** (or choose a subset), install what the environment allows. Check prerequisites first, run each, and report per-tool success or failure. Never fail the whole setup because one install failed — report it and continue.
+
+```bash
+# Claude Code plugins (Superpowers + Context7): add the official marketplace once (idempotent), then install
+claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null || true
+claude plugin install superpowers@claude-plugins-official
+claude plugin install context7@claude-plugins-official
+
+# Playwright MCP (browser checks), user scope so every project gets it
+claude mcp add -s user playwright -- npx @playwright/mcp@latest
+
+# GSD planning framework — needs Node/npm
+command -v npx >/dev/null && npx @get-shit-done/cli@latest install || echo "Install Node.js (https://nodejs.org) first, then run: npx @get-shit-done/cli@latest install"
+
+# gstack — needs git + Bun v1.0+
+if command -v bun >/dev/null; then
+  git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && (cd ~/.claude/skills/gstack && ./setup)
+else
+  echo "Install Bun (https://bun.sh) first, then clone gstack (see Resources/getting-started.md)."
+fi
+```
+
+**Always ask the user to do themselves** (cannot be installed from here):
+- **Obsidian** — download from https://obsidian.md and open the vault folder as a vault (Bases is built in; add the TaskNotes community plugin).
+
+**After installing:** give a short, friendly summary — what got installed, what needs a **Claude Code restart** to take effect (plugins + MCP servers do), and the one or two things they must finish themselves (Obsidian, plus anything a missing prerequisite blocked). Point them to `Resources/getting-started.md` for the full reference. **If they said no**, just point them to that file and wrap up warmly.
+
 ## Guidelines
 
 - One universal structure, no mode selection.

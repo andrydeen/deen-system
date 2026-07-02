@@ -6,59 +6,70 @@ updated: 2026-07-02
 
 # Getting Started — Recommended Environment
 
-This vault is your **Deen OS**. It works on its own, but the full workflow assumes a few companion tools. Install these to get the same setup the workflow was designed around. Each is a separate, free, open project — links and exact steps below.
+This vault is your **Deen OS**. It works on its own, but the full workflow assumes a handful of free, open companion tools. `/deen:setup` will offer to **install most of these for you** — the ones it can't (like the Obsidian app) it will hand you the exact steps for. This page is your reference either way.
 
-## 1. Obsidian — view and navigate this vault
+Legend: 🤖 = `/deen:setup` can install it for you · 🙋 = you install it yourself.
 
-The vault is plain markdown, so any editor works, but Obsidian turns it into a navigable knowledge base (backlinks, graph view, database tables).
+## 1. Obsidian — view and navigate this vault 🙋
 
-- **Download:** https://obsidian.md
-- **Open this vault:** Obsidian → *Open folder as vault* → select this folder.
-- **Recommended plugin — TaskNotes** (task management): Settings → Community plugins → Browse → search *TaskNotes* → Install → Enable.
-- **Bases** (database/table views over your notes) is built into Obsidian — no plugin needed.
-- The `CLAUDE.md` file in each folder is a routing index that tells Claude where information belongs. You don't edit these by hand; leave them in place.
+Plain markdown works in any editor, but Obsidian turns this vault into a navigable knowledge base (backlinks, graph, database tables).
+
+- **Download:** https://obsidian.md (then *Open folder as vault* → select this folder)
+- **Recommended plugin — TaskNotes:** Settings → Community plugins → Browse → *TaskNotes* → Install → Enable.
+- **Bases** (database/table views) is built into Obsidian — no plugin needed.
+- The `CLAUDE.md` in each folder is a routing index for Claude — leave those in place.
 
 ## 2. The Deen plugin — `/deen:setup` + `/deen:handoff` (this)
 
-Already installed if you're reading this. To (re)install or update:
-
+Already installed if you're reading this. Reinstall/update:
 ```
 /plugin marketplace add andrydeen/deen-system
 /plugin install deen@deen-system
 ```
 
-- **`/deen:setup`** — builds and personalizes this vault (you already ran it).
-- **`/deen:handoff`** — at the end of a work session, saves a compact note; at the start of the next, restores context. Invoke it explicitly by typing `/deen:handoff`.
+## 3. Superpowers — disciplined Claude Code workflows 🤖
 
-## 3. Superpowers — disciplined Claude Code workflows
-
-By Jesse Vincent. Gives Claude proven skills: brainstorming → spec → plan → build, test-driven development, systematic debugging, and code review. This is what makes Claude *think before coding*.
+By Jesse Vincent. Brainstorm → spec → plan → build, TDD, systematic debugging, code review. Makes Claude *think before coding*.
 
 - **Source:** https://github.com/obra/superpowers
-- **Install:**
-  ```
-  /plugin marketplace add anthropics/claude-plugins-official
-  /plugin install superpowers@claude-plugins-official
-  ```
-- After install you don't call it directly — Claude invokes the right skill automatically (e.g. brainstorming before a feature, TDD while coding).
+- **Install:** `claude plugin marketplace add anthropics/claude-plugins-official` then `claude plugin install superpowers@claude-plugins-official`
 
-## 4. gstack — browser QA, dogfooding, and ship workflows
+## 4. GSD (get-shit-done) — phased planning & execution 🤖
 
-By Garry Tan. Adds a fast headless browser and a set of review/ship skills (`/browse`, `/review`, `/ship`, `/office-hours`, `/design-review`, and more).
+Structured planning framework (`/gsd:new-project`, `/gsd:plan-phase`, `/gsd:execute-phase`, roadmaps, phases). Great for turning an idea into a plan you can execute step by step.
+
+- **Package:** https://www.npmjs.com/package/@get-shit-done/cli
+- **Install** (needs Node/npm): `npx @get-shit-done/cli@latest install` (follow its prompts)
+
+## 5. Context7 — up-to-date library docs during development 🤖
+
+By Upstash. Pulls the *latest* documentation/specs for libraries, frameworks, and APIs into Claude, so you build against current versions instead of stale training data. Important for real development.
+
+- **Install:** `claude plugin marketplace add anthropics/claude-plugins-official` then `claude plugin install context7@claude-plugins-official`
+
+## 6. Playwright MCP — drive a real browser to check functionality 🤖
+
+By Microsoft. Lets Claude open and control a browser to verify that what you built actually works (click through flows, check pages).
+
+- **Source:** https://github.com/microsoft/playwright-mcp
+- **Install:** `claude mcp add -s user playwright -- npx @playwright/mcp@latest`
+
+## 7. gstack — browser QA, review, and ship workflows 🤖
+
+By Garry Tan. Fast headless browser plus review/ship skills (`/browse`, `/review`, `/ship`, `/office-hours`, `/design-review`).
 
 - **Source:** https://github.com/garrytan/gstack
-- **Requirements:** Git, [Bun](https://bun.sh) v1.0+, Node.js (Windows only).
-- **Install** (paste into Claude Code):
-  ```
-  git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup
-  ```
-- After install: `/browse` for web browsing, `/review` on a branch with changes, `/office-hours` to think through what you're building.
+- **Needs:** Git, [Bun](https://bun.sh) v1.0+ (Node.js on Windows).
+- **Install:** `git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`
 
 ## How they fit together
 
-- **Deen plugin** = your personal context (this vault) + session continuity (handoff).
+- **Deen** = your context (this vault) + session continuity (handoff).
 - **Superpowers** = *how* Claude approaches the work (think first, test, review).
-- **gstack** = hands-on QA, review, and shipping for real apps and websites.
+- **GSD** = break a project into phases and execute them.
+- **Context7** = build against the latest library specs, not stale docs.
+- **Playwright MCP** = check in a real browser that it actually works.
+- **gstack** = deeper browser QA, review, and shipping.
 - **Obsidian** = where you read and connect everything.
 
-A typical rhythm: open your project, let Superpowers drive the build discipline, reach for gstack when you need to drive a browser or ship, and finish the session with `/deen:handoff` so tomorrow starts where today ended.
+> Newly installed plugins and MCP servers take effect after you restart Claude Code.
