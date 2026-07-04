@@ -1,0 +1,12 @@
+# Forbidden strings for the shipped plugin (scanned under plugins/ by release-check.sh).
+# One entry per line; matching is case-insensitive fixed-string. Lines starting with # are ignored.
+# Category A — excluded private tooling (locked out of the portable core by design):
+dayone
+Day One
+gstack checkpoint
+personal-goals-vault
+project-dashboard
+visualize
+Cowork
+# Category B — author identity/business strings (nothing ABOUT the author may ship):
+andrydeen@gmail.com
