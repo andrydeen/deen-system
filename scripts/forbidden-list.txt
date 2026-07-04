@@ -1,0 +1,19 @@
+# Forbidden strings for the shipped plugin (scanned under plugins/ by release-check.sh).
+# One entry per line; matching is case-insensitive fixed-string. Lines starting with # are ignored.
+# Category A — excluded private tooling (locked out of the portable core by design):
+dayone
+Day One
+gstack checkpoint
+personal-goals-vault
+project-dashboard
+mcp__visualize
+Cowork
+# Category B — author identity/business strings (nothing ABOUT the author may ship):
+# NOTE: this file is public — only entries that are safe to publish belong here
+# (public handle / name variants). Sensitive vault-content phrases (ICP, brand,
+# business specifics) go in scripts/forbidden-list.local.txt — gitignored, same
+# format, also scanned by release-check.sh. Keep it updated as the vault fills in.
+# (bare "andrydeen" stays allowed: it is the marketplace install path / author URL)
+andrydeen@gmail.com
+Andry Deen
+Deen-setup/deen-system

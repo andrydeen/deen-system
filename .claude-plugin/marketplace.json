@@ -1,12 +1,15 @@
 {
   "name": "deen-system",
-  "owner": { "name": "Deen", "url": "https://github.com/andrydeen" },
-  "description": "Deen's personal-OS tooling for Claude Code: a context vault bootstrap and a session-handoff workflow.",
+  "owner": {
+    "name": "Deen",
+    "url": "https://github.com/andrydeen"
+  },
+  "description": "Deen's personal-OS tooling for Claude Code: a context vault bootstrap, a session-handoff workflow, and a verified four-area team setup.",
   "plugins": [
     {
       "name": "deen",
       "source": "./plugins/deen",
-      "description": "Bootstrap a personal Deen OS context vault and a session-continuity handoff workflow."
+      "description": "Bootstrap a personal Deen OS context vault, keep session continuity with a handoff workflow, and verify the four-area setup (Claude Code practices, memory, handoff, Obsidian) with /deen:verify."
     }
   ]
 }

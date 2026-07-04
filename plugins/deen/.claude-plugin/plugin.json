@@ -1,7 +1,16 @@
 {
   "name": "deen",
-  "version": "1.2.0",
-  "description": "A personal context vault plus a session handoff workflow for Claude Code.",
-  "author": { "name": "Deen", "url": "https://github.com/andrydeen" },
-  "keywords": ["vault", "handoff", "context", "obsidian", "session"]
+  "version": "1.3.0",
+  "description": "A personal context vault, a session handoff workflow, and a four-area setup verification for Claude Code.",
+  "author": {
+    "name": "Deen",
+    "url": "https://github.com/andrydeen"
+  },
+  "keywords": [
+    "vault",
+    "handoff",
+    "context",
+    "obsidian",
+    "session"
+  ]
 }

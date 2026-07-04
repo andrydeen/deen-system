@@ -1,9 +1,10 @@
 # Deen System
 
-A Claude Code plugin that gives you two things:
+A Claude Code plugin that gives you three things:
 
-- **`/deen:setup`** — bootstraps a personal "Deen OS" context vault (a structured set of markdown files about you, your business, brand, customers, and strategy) and interviews you to fill it in.
+- **`/deen:setup`** — bootstraps a personal "Deen OS" context vault (a structured set of markdown files about you, your business, brand, customers, and strategy), interviews you to fill it in, and installs four short area guides (Claude Code practices, memory, handoff, Obsidian) into your vault.
 - **`/deen:handoff`** — saves a compact note at the end of a work session and restores context at the start of the next one, so any project can be picked back up cleanly.
+- **`/deen:verify`** — checks all four setup areas on your machine (guides present and current, memory layers, a real two-session handoff round-trip, Obsidian vault) and names the exact remedial step for anything red.
 
 Everything lives in plain markdown you own. Obsidian is optional (nice for viewing, not required).
 
@@ -19,6 +20,7 @@ Then, in any project:
 ```
 /deen:setup     # first time: build and personalize your vault
 /deen:handoff   # end of a session: save state · start of a session: restore it
+/deen:verify    # after setup: confirm all four areas actually work on your machine
 ```
 
 ## What `/deen:setup` creates
