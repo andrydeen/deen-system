@@ -61,6 +61,18 @@ check_setup_skill() {
   grep -qi 'missing prerequisite' "$file" || err "setup-skill: prerequisite-missing outcome missing (AC-02)"
 }
 
+check_verify_skill() {
+  local file="$REFS/../../verify/SKILL.md"
+  [ -f "$file" ] || { err "verify-skill: file missing ($file)"; return; }
+  grep -qi 'deen verify' "$file" || err "verify-skill: explicit deen-qualified trigger discipline missing"
+  grep -q 'plugin_version' "$file" || err "verify-skill: guide stamp check missing (area 1, AC-08)"
+  grep -qi 'what goes where\|memory layer' "$file" || err "verify-skill: memory-layer check missing (area 2)"
+  grep -q 'restored:' "$file" || err "verify-skill: round-trip evidence check missing (area 3, AC-04)"
+  grep -q '.obsidian' "$file" || err "verify-skill: .obsidian/ check missing (area 4)"
+  grep -qi 'remedial\|exact.*step' "$file" || err "verify-skill: red areas must carry remedial steps"
+  grep -q '/deen:setup' "$file" || err "verify-skill: not-set-up outcome must point to /deen:setup"
+}
+
 check_handoff_skill() {
   local file="$REFS/../../handoff/SKILL.md"
   grep -q 'restored:' "$file" || err "handoff-skill: Mode B does not append the 'restored:' evidence line (AC-04)"
@@ -71,6 +83,7 @@ run() {
   case "$1" in
     handoff-skill)     check_handoff_skill ;;
     setup-skill)       check_setup_skill ;;
+    verify-skill)      check_verify_skill ;;
     guide-memory)      check_guide guide-memory; check_memory_table ;;
     guide-handoff)     check_guide guide-handoff; check_handoff_content ;;
     guide-claude-code) check_guide guide-claude-code ;;
