@@ -79,8 +79,19 @@ check_handoff_skill() {
   grep -qi 'handoff_enabled.*false' "$file" || err "handoff-skill: disabled-silent behavior missing (AC-07)"
 }
 
+check_readme() {
+  local readme="$REFS/../../../../../README.md" skills="$REFS/../.."
+  # every shipped skill must be named in the README (ADR-0001: discoverability)
+  local d s
+  for d in "$skills"/*/; do
+    s="$(basename "$d")"
+    grep -q "/deen:$s" "$readme" || err "readme: shipped skill /deen:$s is not mentioned in README.md"
+  done
+}
+
 run() {
   case "$1" in
+    readme)            check_readme ;;
     handoff-skill)     check_handoff_skill ;;
     setup-skill)       check_setup_skill ;;
     verify-skill)      check_verify_skill ;;
@@ -88,7 +99,7 @@ run() {
     guide-handoff)     check_guide guide-handoff; check_handoff_content ;;
     guide-claude-code) check_guide guide-claude-code ;;
     guide-obsidian)    check_guide guide-obsidian; check_obsidian_content ;;
-    all) for g in guide-memory guide-handoff guide-claude-code guide-obsidian; do run "$g"; done ;;
+    all) for g in guide-memory guide-handoff guide-claude-code guide-obsidian; do run "$g"; done; check_readme ;;
     *) echo "unknown target: $1"; exit 2 ;;
   esac
 }
