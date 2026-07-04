@@ -91,6 +91,16 @@ Tell the user: `Saved to <vault_path>/raw/<Project>/<date>.md — wiki updated.`
 cat "<vault_path>/wiki/<Project>/overview.md"
 ```
 
-### Step 2: Confirm in 2–3 sentences
+### Step 2: Log the restore (round-trip evidence)
+
+Append one line to `<vault_path>/log.md` (create the file if needed):
+
+```
+restored: <Project> — <YYYY-MM-DD HH:MM>
+```
+
+Use the current local date and time. This line is the restore half of the handoff round-trip: `/deen:verify` marks the handoff area green only when a saved raw note is dated on or before a `restored:` entry for the same project — proof that context survived a real session boundary.
+
+### Step 3: Confirm in 2–3 sentences
 
 State the project, current state, and what's next. Don't repeat the full file. Then ask: "What would you like to work on?"

@@ -50,8 +50,15 @@ check_obsidian_content() {
   grep -qi 'open.*vault' "$file" || err "guide-obsidian: open-the-vault steps missing"
 }
 
+check_handoff_skill() {
+  local file="$REFS/../../handoff/SKILL.md"
+  grep -q 'restored:' "$file" || err "handoff-skill: Mode B does not append the 'restored:' evidence line (AC-04)"
+  grep -qi 'handoff_enabled.*false' "$file" || err "handoff-skill: disabled-silent behavior missing (AC-07)"
+}
+
 run() {
   case "$1" in
+    handoff-skill)     check_handoff_skill ;;
     guide-memory)      check_guide guide-memory; check_memory_table ;;
     guide-handoff)     check_guide guide-handoff; check_handoff_content ;;
     guide-claude-code) check_guide guide-claude-code ;;
