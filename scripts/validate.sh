@@ -50,6 +50,17 @@ check_obsidian_content() {
   grep -qi 'open.*vault' "$file" || err "guide-obsidian: open-the-vault steps missing"
 }
 
+check_setup_skill() {
+  local file="$REFS/../SKILL.md"
+  for g in guide-claude-code guide-memory guide-handoff guide-obsidian; do
+    grep -q "references/$g.md" "$file" || err "setup-skill: Step A.4 lacks the $g row (AC-08)"
+  done
+  grep -q 'plugin_version' "$file" || err "setup-skill: guide version-stamp instruction missing (ADR-0002)"
+  grep -qi 'add-only' "$file" || err "setup-skill: add-only re-run rule missing (AC-02)"
+  grep -q '/deen:verify' "$file" || err "setup-skill: closing message does not point to /deen:verify"
+  grep -qi 'missing prerequisite' "$file" || err "setup-skill: prerequisite-missing outcome missing (AC-02)"
+}
+
 check_handoff_skill() {
   local file="$REFS/../../handoff/SKILL.md"
   grep -q 'restored:' "$file" || err "handoff-skill: Mode B does not append the 'restored:' evidence line (AC-04)"
@@ -59,6 +70,7 @@ check_handoff_skill() {
 run() {
   case "$1" in
     handoff-skill)     check_handoff_skill ;;
+    setup-skill)       check_setup_skill ;;
     guide-memory)      check_guide guide-memory; check_memory_table ;;
     guide-handoff)     check_guide guide-handoff; check_handoff_content ;;
     guide-claude-code) check_guide guide-claude-code ;;

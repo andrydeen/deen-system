@@ -41,7 +41,9 @@ handoff_enabled: true
 
 ### Step A.2: Pre-flight
 
-If `<vault_path>/CLAUDE.md` already exists, the vault is set up. Ask: restart interview (keep structure, refresh files), full reset (delete and rebuild — confirm twice), or cancel. Otherwise continue.
+If `<vault_path>/CLAUDE.md` already exists, the vault is set up. Default to an **add-only update**: detect what already exists, skip completed areas, and add only what's missing (e.g. the four `Resources/guide-*.md` files on a vault created by an older plugin version). Refresh a guide copy only when its `plugin_version` stamp is older than the installed plugin version — guide copies are plugin-owned; **never modify or delete any other existing vault content**. Also offer: restart interview (keep structure, refresh files), full reset (delete and rebuild — confirm twice), or cancel. Otherwise (no vault) continue.
+
+**Missing prerequisite rule (any step).** If a step needs something that isn't there (e.g. the Obsidian app for the knowledge layer, or `git` for an install), do not stall and do not start over: name the **missing prerequisite**, give the exact remedial step (install command or link), and tell the user to re-run `/deen:setup` after fixing it — the add-only re-run will skip everything already done and continue from the incomplete step.
 
 ### Step A.3: Create the directory structure
 
@@ -71,6 +73,12 @@ Read each reference file and write its content verbatim to the vault path:
 | `references/claude-md-resources.md` | `<vault>/Resources/CLAUDE.md` |
 | `references/claude-md-skills.md` | `<vault>/Skills/CLAUDE.md` |
 | `references/getting-started.md` | `<vault>/Resources/getting-started.md` |
+| `references/guide-claude-code.md` | `<vault>/Resources/guide-claude-code.md` |
+| `references/guide-memory.md` | `<vault>/Resources/guide-memory.md` |
+| `references/guide-handoff.md` | `<vault>/Resources/guide-handoff.md` |
+| `references/guide-obsidian.md` | `<vault>/Resources/guide-obsidian.md` |
+
+**Version-stamp the four guide copies.** When writing each `guide-*.md` into the vault, add one frontmatter line to the copy: `plugin_version: <version>` — read `<version>` from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. The bundled reference has no stamp; only vault copies do. The stamp is how re-runs and `/deen:verify` detect stale guides.
 
 ### Step A.5: Create the starter Context file
 
@@ -78,7 +86,7 @@ Read `references/context-me.md` and write it to `<vault>/Context/me.md`. That is
 
 ### Step A.6: Confirm bootstrap
 
-Tell the user the structure was created, list the main folders (`Context`, `Projects`, `Daily`, `Resources`, `Skills`, `Intelligence`), note the vault path, mention Obsidian is optional for viewing, and that `/deen:handoff` will use this vault. Also point them to **`Resources/getting-started.md`** — it explains the recommended companion tools (Obsidian, the Superpowers plugin, and gstack) with install links and how they fit together, so they can set up the full workflow, not just the vault. Then start Phase B.
+Tell the user the structure was created, list the main folders (`Context`, `Projects`, `Daily`, `Resources`, `Skills`, `Intelligence`), note the vault path, mention Obsidian is optional for viewing, and that `/deen:handoff` will use this vault. Also point them to **`Resources/getting-started.md`** — it explains the recommended companion tools (Obsidian, the Superpowers plugin, and gstack) with install links and how they fit together, so they can set up the full workflow, not just the vault — and to the four area guides now in `Resources/` (`guide-claude-code`, `guide-memory`, `guide-handoff`, `guide-obsidian`): short "when and why" reads for how this system is used day to day. Mention that once they've worked a first session and done a handoff save + restore, **`/deen:verify`** will check all four areas and confirm the setup is complete. Then start Phase B.
 
 ## Phase B: Onboarding — Guided Brain Dump (conversational)
 
