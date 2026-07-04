@@ -7,6 +7,7 @@ set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LIST="$ROOT/scripts/forbidden-list.txt"
+LOCAL_LIST="$ROOT/scripts/forbidden-list.local.txt"  # gitignored supplement: sensitive vault-content phrases
 SCAN_DIR="$ROOT/plugins"
 LOG="$ROOT/docs/release-overrides.log"
 
@@ -20,12 +21,16 @@ if [ "${1:-}" = "--override" ]; then
 fi
 
 MATCHES=""
-while IFS= read -r entry; do
-  case "$entry" in ''|'#'*) continue ;; esac
-  hit=$(grep -rinF -- "$entry" "$SCAN_DIR" 2>/dev/null)
-  [ -n "$hit" ] && MATCHES="${MATCHES}${hit}
+scan_list() {
+  while IFS= read -r entry; do
+    case "$entry" in ''|'#'*) continue ;; esac
+    hit=$(grep -rinF -- "$entry" "$SCAN_DIR" 2>/dev/null)
+    [ -n "$hit" ] && MATCHES="${MATCHES}${hit}
 "
-done < "$LIST"
+  done < "$1"
+}
+scan_list "$LIST"
+[ -f "$LOCAL_LIST" ] && scan_list "$LOCAL_LIST"
 
 if [ -z "$MATCHES" ]; then
   echo "clean — release may proceed"
