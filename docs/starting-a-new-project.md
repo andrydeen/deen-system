@@ -81,6 +81,10 @@ You have a document now — either your `IDEA.md` or a specification someone gav
 
 **What you get:** a `.planning/` folder in your project containing the requirements, a roadmap split into phases, and a state file that remembers progress between sessions. This roadmap is now the single source of truth for *what* gets built and *in what order*.
 
+**Step 4 — Keep the roadmap small (this matters more than anything else on this page).** When GSD interviews you, you will be tempted to put every feature you can imagine into the plan. Don't. The version-1 roadmap should answer exactly one question: *what is the smallest version I can genuinely USE end-to-end?* — use, not demo. That's typically 2–4 phases. Half of the features people plan upfront turn out to be unnecessary once real usage starts, and a big plan delays the moment you actually see the product working. So:
+- **Plan the skeleton fully** — the decisions that are hard to change later (what data is stored and how, how users log in, single user or teams, which services it connects to) deserve real thought now.
+- **Plan the features barely** — every feature idea beyond version 1 gets written down as one line (after launch, `/sdd:roadmap` is the place for these), and gets its real planning only when its turn comes — by then the live product will have taught you what it actually needs.
+
 ---
 
 ## Part 4 — Pressure-test the plan before building (recommended)
