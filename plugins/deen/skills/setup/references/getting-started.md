@@ -41,6 +41,13 @@ Structured planning framework (`/gsd:new-project`, `/gsd:plan-phase`, `/gsd:exec
 - **Package:** https://www.npmjs.com/package/@get-shit-done/cli
 - **Install** (needs Node/npm): `npx @get-shit-done/cli@latest install` (follow its prompts)
 
+## 4b. SDD — spec-driven development for live products 🤖
+
+Per-feature engineering pipeline for products that already exist: `/sdd:specify` → `/sdd:clarify` → `/sdd:design` → `/sdd:tasks` → `/sdd:implement` → `/sdd:review` → `/sdd:ship`. Where GSD gets a project *to* version 1, SDD evolves it *after* version 1 — one feature at a time, with a written spec, architecture doc, and test-first implementation for each.
+
+- **Source:** https://github.com/genkovich/sdd
+- **Install:** `claude plugin marketplace add genkovich/sdd` then `claude plugin install sdd@sdd`
+
 ## 5. Context7 — up-to-date library docs during development 🤖
 
 By Upstash. Pulls the *latest* documentation/specs for libraries, frameworks, and APIs into Claude, so you build against current versions instead of stale training data. Important for real development.
@@ -66,7 +73,8 @@ By Garry Tan. Fast headless browser plus review/ship skills (`/browse`, `/review
 
 - **Deen** = your context (this vault) + session continuity (handoff).
 - **Superpowers** = *how* Claude approaches the work (think first, test, review).
-- **GSD** = break a project into phases and execute them.
+- **GSD** = break a project into phases and execute them — the road to version 1.
+- **SDD** = after version 1 is live, build each new feature spec-first.
 - **Context7** = build against the latest library specs, not stale docs.
 - **Playwright MCP** = check in a real browser that it actually works.
 - **gstack** = deeper browser QA, review, and shipping.

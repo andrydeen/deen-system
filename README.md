@@ -44,12 +44,15 @@ The plugin works on its own, but the full workflow assumes a handful of free, op
 
 - **[Obsidian](https://obsidian.md)** *(you install)* — open your vault folder as a vault to browse it as a linked knowledge base. Recommended plugin: **TaskNotes**; database views (**Bases**) are built in.
 - **[Superpowers](https://github.com/obra/superpowers)** (Jesse Vincent) — disciplined workflows (brainstorm → spec → plan → build, TDD, debugging, review): `claude plugin install superpowers@claude-plugins-official`
-- **[GSD / get-shit-done](https://www.npmjs.com/package/@get-shit-done/cli)** — phased planning & execution (`/gsd:*`): `npx @get-shit-done/cli@latest install`
+- **[GSD / get-shit-done](https://www.npmjs.com/package/@get-shit-done/cli)** — phased planning & execution (`/gsd:*`), the road to version 1: `npx @get-shit-done/cli@latest install`
+- **[SDD](https://github.com/genkovich/sdd)** — spec-driven development (`/sdd:*`): per-feature pipeline (spec → design → tasks → implement → review → ship) for products that are already live: `claude plugin marketplace add genkovich/sdd` then `claude plugin install sdd@sdd`
 - **[Context7](https://github.com/upstash/context7)** (Upstash) — pulls the latest library/framework docs into Claude so you build against current specs: `claude plugin install context7@claude-plugins-official`
 - **[Playwright MCP](https://github.com/microsoft/playwright-mcp)** (Microsoft) — drive a real browser to verify functionality: `claude mcp add -s user playwright -- npx @playwright/mcp@latest`
 - **[gstack](https://github.com/garrytan/gstack)** (Garry Tan) — browser QA + review/ship skills. Needs Git + [Bun](https://bun.sh): `git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`
 
-How they fit: **Deen** = your context + session continuity · **Superpowers** = how Claude approaches the work · **GSD** = phased planning · **Context7** = latest specs · **Playwright MCP** / **gstack** = check it in a real browser & ship · **Obsidian** = where you read it all.
+How they fit: **Deen** = your context + session continuity · **Superpowers** = how Claude approaches the work · **GSD** = phased planning to version 1 · **SDD** = per-feature pipeline after launch · **Context7** = latest specs · **Playwright MCP** / **gstack** = check it in a real browser & ship · **Obsidian** = where you read it all.
+
+**New here? Start with the walkthrough:** [docs/starting-a-new-project.md](docs/starting-a-new-project.md) — a step-by-step guide from "I have an idea" (or a spec document) to a live product, with the exact command to run at every stage.
 
 ## Requirements
 

@@ -160,7 +160,8 @@ Summarize which Context files and how many projects were created, note the vault
 After the vault is built, offer to install the companion tools that make the full workflow work (detailed in `Resources/getting-started.md`). Be warm and concrete — this is a favor, not a checklist. Briefly list what each tool is for:
 
 - **Superpowers** — disciplined workflows (plan, TDD, debug, review)
-- **GSD** — phased planning & execution
+- **GSD** — phased planning & execution (getting a project to version 1)
+- **SDD** — spec-driven development: per-feature pipeline for products that are already live (spec → design → tasks → implement → review → ship)
 - **Context7** — up-to-date library docs while you build
 - **Playwright MCP** — drive a real browser to check functionality
 - **gstack** — browser QA / review / ship
@@ -177,6 +178,10 @@ Then ask with one `AskUserQuestion` (header `Environment`):
 claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null || true
 claude plugin install superpowers@claude-plugins-official
 claude plugin install context7@claude-plugins-official
+
+# SDD — spec-driven development pipeline (per-feature work on live products)
+claude plugin marketplace add genkovich/sdd 2>/dev/null || true
+claude plugin install sdd@sdd
 
 # Playwright MCP (browser checks), user scope so every project gets it
 claude mcp add -s user playwright -- npx @playwright/mcp@latest
