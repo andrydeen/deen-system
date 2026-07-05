@@ -1,6 +1,6 @@
 {
   "name": "deen",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "A personal context vault, a session handoff workflow, and a four-area setup verification for Claude Code.",
   "author": {
     "name": "Deen",
