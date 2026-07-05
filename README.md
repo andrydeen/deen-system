@@ -1,6 +1,8 @@
 # Deen System
 
-A Claude Code plugin that gives you three things:
+Two Claude Code plugins: **`deen`** (context vault + session continuity) and **`guardrails`** (safety hooks + rules generator — see [plugins/guardrails/README.md](plugins/guardrails/README.md); install with `/plugin install guardrails@deen-system`).
+
+The `deen` plugin gives you three things:
 
 - **`/deen:setup`** — bootstraps a personal "Deen OS" context vault (a structured set of markdown files about you, your business, brand, customers, and strategy), interviews you to fill it in, and installs four short area guides (Claude Code practices, memory, handoff, Obsidian) into your vault.
 - **`/deen:handoff`** — saves a compact note at the end of a work session and restores context at the start of the next one, so any project can be picked back up cleanly.

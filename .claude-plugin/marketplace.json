@@ -10,6 +10,11 @@
       "name": "deen",
       "source": "./plugins/deen",
       "description": "Bootstrap a personal Deen OS context vault, keep session continuity with a handoff workflow, and verify the four-area setup (Claude Code practices, memory, handoff, Obsidian) with /deen:verify."
+    },
+    {
+      "name": "guardrails",
+      "source": "./plugins/guardrails",
+      "description": "Passive safety hooks active in every project (secret scanning, protected files, dangerous-command blocking, generated-dir protection) plus /guardrails:rules — evidence-based generator of path-scoped .claude/rules for a codebase. Derived from poshan0126/dotclaude (MIT), slimmed to complement the Superpowers/GSD/SDD/GStack stack."
     }
   ]
 }
