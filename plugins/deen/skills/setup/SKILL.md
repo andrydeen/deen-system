@@ -162,6 +162,7 @@ After the vault is built, offer to install the companion tools that make the ful
 - **Superpowers** — disciplined workflows (plan, TDD, debug, review)
 - **GSD** — phased planning & execution (getting a project to version 1)
 - **SDD** — spec-driven development: per-feature pipeline for products that are already live (spec → design → tasks → implement → review → ship)
+- **Guardrails** — passive safety hooks active in every project from day one (secret scanning, protected files, dangerous-command blocking), plus `/guardrails:rules` to generate per-project coding rules once a codebase matures
 - **Context7** — up-to-date library docs while you build
 - **Playwright MCP** — drive a real browser to check functionality
 - **gstack** — browser QA / review / ship
@@ -182,6 +183,9 @@ claude plugin install context7@claude-plugins-official
 # SDD — spec-driven development pipeline (per-feature work on live products)
 claude plugin marketplace add genkovich/sdd 2>/dev/null || true
 claude plugin install sdd@sdd
+
+# Guardrails — safety hooks + rules generator (same deen-system marketplace this plugin came from)
+claude plugin install guardrails@deen-system
 
 # Playwright MCP (browser checks), user scope so every project gets it
 claude mcp add -s user playwright -- npx @playwright/mcp@latest

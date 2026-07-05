@@ -48,6 +48,16 @@ Per-feature engineering pipeline for products that already exist: `/sdd:specify`
 - **Source:** https://github.com/genkovich/sdd
 - **Install:** `claude plugin marketplace add genkovich/sdd` then `claude plugin install sdd@sdd`
 
+## 4c. Guardrails — safety hooks + per-project coding rules 🤖
+
+Two parts, used at two different stages:
+
+- **Safety hooks — active from day one, automatically.** Once installed, every project on your machine is protected: edits that introduce secrets (API keys, tokens) are blocked, `.env`/key/lock files can't be touched, dangerous commands (force-push, `rm -rf`, `DROP TABLE`, `curl | sh`) are stopped. You do nothing — they're silent until something risky happens.
+- **`/guardrails:rules` — run ONCE per project, and only when the project is mature.** The right moment is when your product is live and its conventions have settled (the same moment you switch to SDD). It scans the codebase and writes path-scoped coding rules (`.claude/rules/`) that Claude loads automatically when editing matching files. Don't run it on a fresh or empty project — rules distilled from nothing are noise.
+
+- **Source:** part of this marketplace (`deen-system`)
+- **Install:** `claude plugin install guardrails@deen-system` (marketplace already added with the deen plugin)
+
 ## 5. Context7 — up-to-date library docs during development 🤖
 
 By Upstash. Pulls the *latest* documentation/specs for libraries, frameworks, and APIs into Claude, so you build against current versions instead of stale training data. Important for real development.
@@ -75,6 +85,7 @@ By Garry Tan. Fast headless browser plus review/ship skills (`/browse`, `/review
 - **Superpowers** = *how* Claude approaches the work (think first, test, review).
 - **GSD** = break a project into phases and execute them — the road to version 1.
 - **SDD** = after version 1 is live, build each new feature spec-first.
+- **Guardrails** = always-on safety net; `/guardrails:rules` once per mature project.
 - **Context7** = build against the latest library specs, not stale docs.
 - **Playwright MCP** = check in a real browser that it actually works.
 - **gstack** = deeper browser QA, review, and shipping.

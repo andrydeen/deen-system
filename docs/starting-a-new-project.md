@@ -23,7 +23,7 @@ Skip this part if you've already done it.
    ```
    /deen:setup
    ```
-   When it offers to install the recommended stack (**Superpowers, GSD, SDD, GStack**, Context7, Playwright), say yes — this guide uses all of them: Superpowers and GSD from day one, SDD after your product goes live, GStack for reviews and QA.
+   When it offers to install the recommended stack (**Superpowers, GSD, SDD, Guardrails, GStack**, Context7, Playwright), say yes — this guide uses all of them: Superpowers and GSD from day one, SDD after your product goes live, GStack for reviews and QA, and Guardrails protecting you silently the whole time (it blocks accidental secrets, dangerous commands, and edits to files that should never be touched — you'll only notice it when it saves you).
 4. Restart Claude Code (newly installed plugins only load on restart), then verify everything works:
    ```
    /deen:verify
@@ -158,6 +158,12 @@ If a feature touches the database or an API, SDD will tell you it needs extra st
 
 **The one rule that prevents chaos:** never run GSD planning and SDD on the same piece of work. GSD owns the whole project skeleton; SDD owns one feature at a time.
 
+**Also at this moment — once per project:** now that your codebase is stable and its conventions have settled, run:
+```
+/guardrails:rules
+```
+It scans your project and writes coding rules (`.claude/rules/`) that Claude loads automatically from then on — your testing style, error handling, database conventions, distilled from your actual code. This is a once-per-project step, and *this* is the right stage for it: run it earlier, on a half-built project, and the rules would capture noise instead of conventions. (The Guardrails safety hooks, by contrast, have been protecting you since Part 0 — those need no command at all.)
+
 ---
 
 ## Part 7 — Session rules (every session, every project)
@@ -189,6 +195,7 @@ The same command at the start of a session restores context — Claude reads the
 | Fix a bug properly | `/gsd:debug` |
 | Finish version 1 | `/gsd:complete-milestone` |
 | Add a feature to a live product | `/sdd:specify <name>` → follow the chain in Part 6 |
+| Generate coding rules for a mature project (once) | `/guardrails:rules` — safety hooks need no command, they're always on |
 | Do a small task (< 1 day) | Just describe it to Claude — no framework |
 | End (or start) any session | `/deen:handoff` |
 | Check my setup is healthy | `/deen:verify` |
