@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Derived from poshan0126/dotclaude (MIT), unmodified.
+# Derived from poshan0126/dotclaude (MIT), modified: "ask" exits 0 so the
+# JSON permissionDecision is honored and the user gets a confirmation prompt
+# (exit 2 hard-blocks and drops the JSON, turning "ask" into a silent deny).
 # Blocks edits to sensitive or generated files.
 # PreToolUse hook for Edit|Write operations.
-# Exit 2 = block. Exit 0 = allow.
+# Exit 2 = block. Exit 0 = allow / ask via JSON decision.
 
 set -uo pipefail
 
@@ -11,6 +13,10 @@ emit() {
   local decision="$1"
   local reason="${2//\"/\\\"}"
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":"%s"}}\n' "$decision" "$reason"
+  if [ "$decision" = "ask" ]; then
+    exit 0
+  fi
+  printf '%s\n' "$2" >&2
   exit 2
 }
 
