@@ -14,7 +14,12 @@
     {
       "name": "guardrails",
       "source": "./plugins/guardrails",
-      "description": "Passive safety hooks active in every project (secret scanning, protected files, dangerous-command blocking, generated-dir protection) plus /guardrails:rules — evidence-based generator of path-scoped .claude/rules for a codebase. Derived from poshan0126/dotclaude (MIT), slimmed to complement the Superpowers/GSD/SDD/GStack stack."
+      "description": "Passive safety hooks active in every project (secret scanning, protected files, dangerous-command blocking, generated-dir protection) plus /guardrails:rules \u2014 evidence-based generator of path-scoped .claude/rules for a codebase. Derived from poshan0126/dotclaude (MIT), slimmed to complement the Superpowers/GSD/SDD/GStack stack."
+    },
+    {
+      "name": "studio",
+      "source": "./plugins/studio",
+      "description": "Web design & AI video toolkit: orbiting-sphere 3D hero website template (Three.js), property-listing-to-walkthrough-video pipeline (Apify + Higgsfield + ffmpeg), Seedance 2.0 storyboarding, and shot-by-shot AI video prompt building. Bring your own service accounts."
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Deen System
 
-Two Claude Code plugins: **`deen`** (context vault + session continuity) and **`guardrails`** (safety hooks + rules generator — see [plugins/guardrails/README.md](plugins/guardrails/README.md); install with `/plugin install guardrails@deen-system`).
+Three Claude Code plugins: **`deen`** (context vault + session continuity), **`guardrails`** (safety hooks + rules generator — see [plugins/guardrails/README.md](plugins/guardrails/README.md)), and **`studio`** (web design & AI video toolkit — see [plugins/studio/README.md](plugins/studio/README.md); install with `/plugin install studio@deen-system`).
 
 The `deen` plugin gives you three things:
 
@@ -58,6 +58,8 @@ How they fit: **Deen** = your context + session continuity · **Superpowers** = 
 **New here? Start with the walkthrough:** [docs/starting-a-new-project.md](docs/starting-a-new-project.md) — a step-by-step guide from "I have an idea" (or a spec document) to a live product, with the exact command to run at every stage.
 
 **Before your first project:** [docs/github-setup.md](docs/github-setup.md) — install and authenticate the `gh` CLI so your agent can create repos, open PRs, and file issues.
+
+**Building websites or AI video?** [docs/creative-stack.md](docs/creative-stack.md) — the `studio` plugin plus the third-party design/video skills that pair with it.
 
 **After your product is live:** [docs/post-release-support.md](docs/post-release-support.md) — the post-release support system: session-replay bug reports (PostHog), uptime + error alerts, the three support tiers with AI-assisted triage, and the Red Lamp debugging rule.
 

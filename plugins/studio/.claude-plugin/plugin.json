@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "studio",
+  "version": "1.0.0",
+  "description": "Web design & AI video toolkit: an orbiting-sphere 3D hero website template, a property-listing-to-walkthrough-video pipeline, Seedance 2.0 storyboarding, and shot-by-shot AI video prompt building.",
+  "author": {
+    "name": "Deen",
+    "url": "https://github.com/andrydeen"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/andrydeen/deen-system",
+  "repository": "https://github.com/andrydeen/deen-system",
+  "keywords": [
+    "web-design",
+    "ai-video",
+    "threejs",
+    "storyboard",
+    "video-prompts"
+  ]
+}

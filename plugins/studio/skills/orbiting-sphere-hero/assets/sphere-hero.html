@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DE:N STUDIO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Tenor+Sans&display=swap" rel="stylesheet" />
+<style>
+  :root,
+  :root[data-theme="dark"] {
+    --bg: #0D0D0F;        /* near-black charcoal */
+    --nav-text: #9A9A9F;  /* muted light gray */
+    --divider: #2A2A2E;   /* low-contrast hairline */
+    --logo: #F2F0EB;      /* warm light */
+    --accent: #C9A86A;    /* champagne gold — used sparingly */
+    --body-text: #A6A4A0; /* paragraph gray on dark */
+  }
+  :root[data-theme="light"] {
+    --bg: #F5F1EC;        /* warm off-white (matches the reference site) */
+    --nav-text: #404040;
+    --divider: #D9D9D9;
+    --logo: #1E1B18;      /* near-black ink */
+    --accent: #936A2B;    /* deep bronze — readable gold on cream */
+    --body-text: #4A4A46;
+  }
+  html { background: var(--bg); transition: background-color .4s ease; }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  body {
+    font-family: 'Tenor Sans', serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- Background fade-in overlay (white -> transparent) ---- */
+  #bg-fade {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 50;
+    pointer-events: none;
+    opacity: 1;
+    animation: bgFade 0.8s ease forwards;
+  }
+  @keyframes bgFade { to { opacity: 0; } }
+
+  /* ---- Navigation ---- */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 1s ease;
+  }
+  nav.visible { opacity: 1; }
+
+  .nav-inner {
+    width: 100%;
+    padding: 28px var(--nav-pad) 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+  }
+
+  :root { --nav-pad: 48px; }
+
+  .nav-group {
+    display: flex;
+    gap: 56px;
+    align-items: center;
+  }
+
+  .nav-link {
+    font-family: 'Tenor Sans', serif;
+    font-size: 0.82rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--nav-text);
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity 0.3s ease;
+  }
+  .nav-link:hover { opacity: 0.55; }
+
+  .nav-brand {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -55%);
+    font-family: 'Tenor Sans', serif;
+    font-size: 1.6rem;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--logo);
+    padding-left: 0.32em; /* optical centering for letter-spacing */
+    white-space: nowrap;
+  }
+
+  /* Divider spans full width, inset by the same padding as the nav buttons,
+     so it aligns exactly under INDEX (left) and CONTACT (right). */
+  .nav-divider {
+    height: 1px;
+    margin: 0 var(--nav-pad);
+    background: var(--divider);
+  }
+
+  /* ---- 3D canvas ---- */
+  #scene {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: block;
+    cursor: grab;
+    touch-action: none;
+  }
+  #scene.dragging { cursor: grabbing; }
+
+  /* Mobile-only chrome is hidden on desktop/tablet by default. */
+  .nav-brand-mobile,
+  #hamburger,
+  #mobile-menu { display: none; }
+
+  /* ---- Theme toggle ---- */
+  .theme-toggle {
+    background: none; border: none; cursor: pointer; padding: 6px;
+    color: var(--nav-text); display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; transition: color .3s ease, opacity .3s ease;
+  }
+  .theme-toggle:hover { color: var(--logo); }
+  .theme-toggle svg { width: 18px; height: 18px; display: block; }
+  .theme-toggle .icon-sun { display: none; }
+  .theme-toggle .icon-moon { display: block; }
+  :root[data-theme="light"] .theme-toggle .icon-sun { display: block; }
+  :root[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+  .nav-group .theme-toggle { margin-left: 8px; }
+
+  /* ====================================================================
+     Project detail page (shown after a card is clicked)
+     ==================================================================== */
+
+  /* The image that flies out of the sphere and settles on the right.
+     Its top/left/width/height are driven in JS; object-fit cover only
+     matters at the final resting rect (where the box is not 3:4). */
+  #project-img {
+    position: fixed;
+    z-index: 15;
+    object-fit: cover;
+    object-position: center;
+    display: none;
+    border-radius: 0;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+    will-change: top, left, width, height;
+  }
+
+  /* Left-column text overlay */
+  #project {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    pointer-events: none;
+    display: none;
+  }
+  #project.active { display: block; }
+
+  /* "Back to sphere" control, top-left of the project page */
+  #project-back {
+    position: fixed;
+    right: var(--nav-pad);                  /* JS aligns it to the image's right edge */
+    top: 104px;
+    z-index: 16;
+    pointer-events: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'Tenor Sans', serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--nav-text);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    opacity: 0;
+    transition: color 0.3s ease, opacity 0.5s ease 0.6s;  /* fade in after the entry settles */
+  }
+  #project.active #project-back { opacity: 1; }
+  #project-back:hover { color: var(--logo); }
+  #project-back .arrow { color: var(--accent); transition: transform 0.3s ease; }
+  #project-back:hover .arrow { transform: translateX(-5px); }
+
+  #project-text {
+    position: fixed;
+    color: var(--body-text);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;      /* vertically centre the compact text block against the image */
+  }
+
+  #p-title {
+    position: static;
+    font-family: 'Tenor Sans', serif;
+    font-weight: 400;
+    font-size: clamp(1.7rem, 2.4vw, 2.4rem);
+    letter-spacing: normal;       /* normal tracking, unlike the nav */
+    line-height: 1.1;
+    color: var(--logo);
+  }
+
+  #p-body {
+    position: static;
+    margin-top: 1.6rem;           /* compact gap under the title */
+  }
+
+  #p-eyebrow {
+    font-family: 'Tenor Sans', serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.25em;       /* generous, matching the nav */
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  #p-body p {
+    font-family: 'Tenor Sans', serif;
+    font-size: 0.82rem;
+    letter-spacing: normal;
+    line-height: 1.55;
+    color: var(--body-text);
+    max-width: 360px;
+  }
+  #p-1 { margin-top: 0.9rem; }    /* compact gap below the eyebrow */
+  #p-2 { margin-top: 0.8rem; }    /* compact paragraph gap */
+
+  /* fade-in + slide-up reveal (per-element delay set in JS) */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .reveal.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ====================================================================
+     Mobile (< 768px)
+     ==================================================================== */
+  @media (max-width: 767px) {
+    :root { --nav-pad: 20px; }
+
+    /* --- Navigation: logo left, hamburger right --- */
+    nav {
+      z-index: 110;                       /* keep nav (and the ✕) above the menu */
+      background: var(--bg);              /* opaque so scrolled content can't bleed through */
+    }
+    .nav-inner { padding: 18px var(--nav-pad) 15px; }
+    .nav-desktop { display: none !important; }   /* hide the four links + centre brand */
+
+    .nav-brand-mobile {
+      display: block;
+      font-family: 'Tenor Sans', serif;
+      text-transform: uppercase;
+      letter-spacing: 0.25em;
+      color: var(--logo);
+      font-size: 1.2rem;
+      padding-left: 0.25em;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    #hamburger {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+      width: 30px;
+      height: 22px;
+      padding: 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+    #hamburger span {
+      display: block;
+      width: 28px;
+      height: 1.5px;
+      background: var(--nav-text);
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    #hamburger.open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+    #hamburger.open span:nth-child(2) { opacity: 0; }
+    #hamburger.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+    /* --- Full-screen menu --- */
+    #mobile-menu {
+      display: flex;
+      position: fixed;
+      inset: 0;
+      z-index: 90;                        /* below the nav bar so the ✕ stays tappable */
+      background: var(--bg);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2.75rem;
+      opacity: 0;
+      transform: translateX(100%);
+      pointer-events: none;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+    #mobile-menu.open { opacity: 1; transform: translateX(0); pointer-events: auto; }
+    .m-link {
+      font-family: 'Tenor Sans', serif;
+      text-transform: uppercase;
+      letter-spacing: 0.25em;
+      color: var(--nav-text);
+      font-size: 1.7rem;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    /* --- Project page: single column, scrollable --- */
+    #project {
+      position: fixed;
+      inset: 0;
+      z-index: 15;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      pointer-events: auto;
+      background: var(--bg);
+      padding: 0 var(--nav-pad);          /* padding-top set in JS (below the nav) */
+    }
+
+    /* On mobile the brand logo already returns to the sphere, so hide the
+       floating control to avoid overlapping the image. */
+    #project-back { display: none; }
+
+    /* image flowed in at the top once it has landed */
+    #project-img.m-inflow {
+      position: static;
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1 / 1;        /* square, uncropped */
+      margin: 0;
+      box-shadow: none;
+    }
+
+    #project-text {
+      position: static;
+      left: auto; top: auto;
+      width: auto;
+      height: auto;
+      padding-bottom: 3rem;               /* comfortable space at the end of scroll */
+    }
+    #p-title {
+      position: static;
+      font-size: clamp(2rem, 7vw, 2.5rem);
+      margin-top: 2rem;
+    }
+    #p-body {
+      position: static;
+      bottom: auto;
+      margin-top: 2.75rem;                /* generous gap below the title */
+    }
+    #p-eyebrow { font-size: 0.75rem; }
+    #p-body p {
+      max-width: none;
+      font-size: 0.88rem;
+    }
+    #p-1 { margin-top: 1rem; }            /* eyebrow -> first paragraph */
+    #p-2 { margin-top: 1rem; }
+  }
+</style>
+<script>
+  /* Apply saved theme before first paint to avoid a flash. */
+  (function () {
+    try {
+      var t = localStorage.getItem('sphere-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  })();
+</script>
+</head>
+<body>
+  <div id="bg-fade"></div>
+
+  <nav id="nav">
+    <div class="nav-inner">
+      <div class="nav-group nav-desktop">
+        <a class="nav-link">Home</a>
+        <a class="nav-link" href="#">Blog</a>
+      </div>
+      <div class="nav-brand nav-desktop">DE:N Studio</div>
+      <div class="nav-group nav-desktop">
+        <a class="nav-link" href="#">Services</a>
+        <a class="nav-link">Contact</a>
+        <button class="theme-toggle" aria-label="Toggle light or dark theme" title="Toggle theme">
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        </button>
+      </div>
+
+      <!-- Mobile: brand left, hamburger right -->
+      <a class="nav-brand-mobile">DE:N Studio</a>
+      <button id="hamburger" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <div class="nav-divider"></div>
+  </nav>
+
+  <!-- Full-screen mobile menu -->
+  <div id="mobile-menu">
+    <a class="m-link" data-nav="index">Home</a>
+    <a class="m-link" href="#">Blog</a>
+    <a class="m-link" href="#">Services</a>
+    <a class="m-link">Contact</a>
+    <button class="theme-toggle" aria-label="Toggle light or dark theme" title="Toggle theme">
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </div>
+
+  <canvas id="scene"></canvas>
+
+  <!-- Project detail page (revealed after a card is clicked) -->
+  <div id="project">
+    <button id="project-back" aria-label="Back to the sphere">
+      <span class="arrow">←</span> Back to sphere
+    </button>
+    <img id="project-img" alt="" />
+    <div id="project-text">
+      <h1 id="p-title" class="reveal"></h1>
+      <div id="p-body">
+        <div id="p-eyebrow" class="reveal"></div>
+        <p id="p-1" class="reveal"></p>
+        <p id="p-2" class="reveal"></p>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+    }
+  }
+  </script>
+
+  <script type="module">
+  import * as THREE from 'three';
+
+  // ----------------------------------------------------------------------
+  // Theme (dark default / light) — see drawLogoText + drawShadow
+  // ----------------------------------------------------------------------
+  const isLight = () => document.documentElement.dataset.theme === 'light';
+
+  // ----------------------------------------------------------------------
+  // Config
+  // ----------------------------------------------------------------------
+  const IMAGES = [
+    '01','02','03','04','05','06','07','08','09','10','11','12'
+  ].map(n => `Visuals/${n}.png`);
+
+  const CARD_W = 200;          // px (base scale) — square to match the square source images
+  const CARD_H = 200;          // px
+  const CARD_ASPECT = CARD_W / CARD_H;
+  const IMG_ASPECT = 1;              // square source images (627×627), shown uncropped
+  const SPHERE_RADIUS_FRAC = 0.40;   // horizontal radius, of min viewport dimension
+  const SPHERE_Y_FACTOR = 0.60;      // vertical radius as fraction of horizontal (flattened/horizontal sphere)
+
+  // Responsive breakpoints / mobile tuning
+  const MOBILE_BREAK = 768;          // < this = mobile layout
+  const TABLET_BREAK = 1024;         // < this (and >= MOBILE) = tablet
+  const MOBILE_ROLL = THREE.MathUtils.degToRad(80);  // roll the orbit toward vertical
+  const MOBILE_CARD_SCALE = 140 / 180;               // ~0.78 (140x187 cards)
+  const MOBILE_RADIUS_FRAC_X = 0.78;  // tall (vertical) radius, of viewport width — bleeds off top/bottom
+  const MOBILE_RADIUS_FRAC_Y = 0.42;  // narrow (horizontal) radius, of viewport width
+  const DEPTH_SCALE_MIN = 0.42;      // scale of the farthest (back) cards
+  const DEPTH_SCALE_MAX = 1.0;       // scale of the nearest (front) cards
+  const DEPTH_OPACITY_MIN = 0.30;    // opacity of the farthest (back) cards
+  const DEPTH_OPACITY_MAX = 1.0;     // opacity of the nearest (front) cards
+  const NAV_SAFE_GAP = 16;           // px clearance kept below the nav bar
+  const REVOLUTION_SECONDS = 50;
+  const IDLE_YAW_SPEED = (Math.PI * 2) / REVOLUTION_SECONDS;
+  const BOB_AMPLITUDE = 6;     // px
+  const BOB_PERIOD = 4;        // seconds
+  const MAX_TILT = THREE.MathUtils.degToRad(25);
+  const HOVER_SCALE = 1.15;
+  const HOVER_FORWARD = 40;    // px toward camera
+  const FOV = 40;
+
+  // Entrance timing
+  const STAGGER = 0.12;        // s between cards
+  const CARD_ENTER_DUR = 0.6;  // s per card
+  const NAV_DELAY = 0.45;      // reveal nav/logo after first few cards
+
+  // ----------------------------------------------------------------------
+  // Scene setup
+  // ----------------------------------------------------------------------
+  const canvas = document.getElementById('scene');
+  const navEl = document.getElementById('nav');
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas, antialias: true, alpha: true
+  });
+  renderer.setClearColor(0x000000, 0);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(FOV, 1, 1, 20000);
+
+  // We work in "pixel units": 1 world unit ≈ 1 CSS pixel. The camera distance
+  // is chosen so the visible height at the z=0 plane equals the viewport height.
+  let cameraDist = 1000;
+  let radiusX = 340;   // horizontal radius
+  let radiusY = 200;   // vertical radius (flattened)
+  let radiusZ = 340;   // depth radius
+  let centerY = 0;     // vertical center of the sphere (shifted below the nav)
+  let viewportMin = 800;
+
+  // Responsive state (recomputed in layout)
+  let isMobile = false;
+  let cardScale = 1;       // multiplies card size on mobile
+  let rollCos = 1, rollSin = 0;   // roll applied to card screen positions (mobile)
+
+  function layout() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    // distance so visible height at z=0 == h  ->  h = 2*D*tan(fov/2)
+    cameraDist = (h / 2) / Math.tan(THREE.MathUtils.degToRad(FOV) / 2);
+    camera.position.set(0, 0, cameraDist);
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    viewportMin = Math.min(w, h);
+
+    // Nav height in CSS px; cards must stay below it.
+    const navH = (navEl && navEl.offsetHeight) ? navEl.offsetHeight : 72;
+
+    // Centre the sphere in the space *below* the nav so it reads as balanced.
+    // Screen top = +h/2 world, the nav occupies the top `navH` px.
+    centerY = -navH / 2;
+
+    // Responsive sizing
+    isMobile = w < MOBILE_BREAK;
+    cardScale = isMobile ? MOBILE_CARD_SCALE : 1;
+    const roll = isMobile ? MOBILE_ROLL : 0;     // roll the orbit toward vertical on mobile
+    rollCos = Math.cos(roll);
+    rollSin = Math.sin(roll);
+
+    camera.updateMatrixWorld();
+
+    if (isMobile) {
+      // Width-driven radii; the (large) X radius becomes the vertical axis after
+      // the roll and is allowed to bleed off the top/bottom edges. No fit-clamp.
+      radiusX = w * MOBILE_RADIUS_FRAC_X;
+      radiusY = w * MOBILE_RADIUS_FRAC_Y;
+      radiusZ = (radiusX + radiusY) / 2;
+    } else {
+      radiusX = viewportMin * SPHERE_RADIUS_FRAC;
+      radiusZ = radiusX;
+
+      // Vertical radius: flattened for a horizontal sphere, then shrunk (if
+      // needed) so that — across the entire rotation, accounting for perspective
+      // and the per-card depth shrink — the top card always clears the nav bar
+      // and the bottom card always stays inside the viewport. Tablet sits a
+      // little rounder (more vertical) than desktop.
+      const topBound = navH + NAV_SAFE_GAP;
+      const botBound = h - NAV_SAFE_GAP;
+      const yFactor = (w < TABLET_BREAK) ? 0.85 : SPHERE_Y_FACTOR;
+      let r = radiusX * yFactor;
+      for (let iter = 0; iter < 40; iter++) {
+        const [minPx, maxPx] = verticalExtent(r);
+        if (minPx >= topBound && maxPx <= botBound) break;
+        r *= 0.95;
+        if (r < 50) break;
+      }
+      radiusY = r;
+    }
+  }
+
+  // Project the worst-case top/bottom screen-pixel extent of the card set over a
+  // full rotation, for a candidate vertical radius.
+  const _v = new THREE.Vector3();
+  const _dir = new THREE.Vector3();
+  const _m = new THREE.Matrix4();
+  function verticalExtent(rY) {
+    const H = window.innerHeight;
+    let minPx = Infinity, maxPx = -Infinity;
+    for (let s = 0; s < 360; s += 6) {
+      _m.makeRotationY(THREE.MathUtils.degToRad(s));
+      for (let i = 0; i < baseDirs.length; i++) {
+        _dir.copy(baseDirs[i]).applyMatrix4(_m);
+        const depthScale = DEPTH_SCALE_MIN + (DEPTH_SCALE_MAX - DEPTH_SCALE_MIN) * ((_dir.z + 1) / 2);
+        const px = _dir.x * radiusX, py = _dir.y * rY + centerY, pz = _dir.z * radiusZ;
+        const hw = (CARD_W / 2) * depthScale;
+        const hh = (CARD_H / 2) * depthScale + BOB_AMPLITUDE;
+        for (const oy of [-hh, hh]) {
+          _v.set(px + hw, py + oy, pz).project(camera);
+          const sy = (-_v.y * 0.5 + 0.5) * H;
+          if (sy < minPx) minPx = sy;
+          if (sy > maxPx) maxPx = sy;
+        }
+      }
+    }
+    return [minPx, maxPx];
+  }
+
+  // ----------------------------------------------------------------------
+  // Fibonacci sphere distribution
+  // ----------------------------------------------------------------------
+  function fibonacciSphere(n) {
+    const pts = [];
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < n; i++) {
+      const y = 1 - (i / (n - 1)) * 2;        // 1 -> -1
+      const r = Math.sqrt(1 - y * y);
+      const theta = golden * i;
+      pts.push(new THREE.Vector3(Math.cos(theta) * r, y, Math.sin(theta) * r));
+    }
+    return pts;
+  }
+  const baseDirs = fibonacciSphere(IMAGES.length);
+
+  // Now that the card directions exist, run the initial layout (it projects
+  // them to size the sphere so nothing clips the nav or the viewport edges).
+  layout();
+
+  // ----------------------------------------------------------------------
+  // Shadow texture (soft radial gradient) shared by all cards
+  // ----------------------------------------------------------------------
+  let shadowCanvas, shadowCtx;
+  function drawShadow() {
+    const s = 256;
+    if (!shadowCanvas) {
+      shadowCanvas = document.createElement('canvas');
+      shadowCanvas.width = shadowCanvas.height = s;
+      shadowCtx = shadowCanvas.getContext('2d');
+    }
+    const ctx = shadowCtx;
+    ctx.clearRect(0, 0, s, s);
+    const g = ctx.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+    if (isLight()) {                                 // dark drop shadow on cream
+      g.addColorStop(0, 'rgba(42,37,32,0.42)');
+      g.addColorStop(0.5, 'rgba(42,37,32,0.16)');
+      g.addColorStop(1, 'rgba(42,37,32,0)');
+    } else {                                         // faint champagne glow on dark
+      g.addColorStop(0, 'rgba(201,168,106,0.16)');
+      g.addColorStop(0.5, 'rgba(201,168,106,0.06)');
+      g.addColorStop(1, 'rgba(201,168,106,0)');
+    }
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, s, s);
+  }
+  function makeShadowTexture() {
+    drawShadow();
+    const tex = new THREE.CanvasTexture(shadowCanvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+  const shadowTex = makeShadowTexture();
+
+  // ----------------------------------------------------------------------
+  // Cover-fit a texture onto the 3:4 card
+  // ----------------------------------------------------------------------
+  function coverTexture(tex) {
+    const img = tex.image;
+    if (!img || !img.width) return;
+    const imgAspect = img.width / img.height;
+    tex.center.set(0.5, 0.5);
+    tex.repeat.set(1, 1);
+    tex.offset.set(0, 0);
+    if (imgAspect > CARD_ASPECT) {
+      tex.repeat.x = CARD_ASPECT / imgAspect;
+    } else {
+      tex.repeat.y = imgAspect / CARD_ASPECT;
+    }
+  }
+
+  // ----------------------------------------------------------------------
+  // Build cards
+  // ----------------------------------------------------------------------
+  const loader = new THREE.TextureLoader();
+  const cardGeo = new THREE.PlaneGeometry(CARD_W, CARD_H);
+  const shadowGeo = new THREE.PlaneGeometry(CARD_W * 1.35, CARD_H * 1.2);
+
+  const cards = [];
+
+  baseDirs.forEach((dir, i) => {
+    const group = new THREE.Group();   // billboarded container
+
+    // shadow plane (behind the card)
+    const shadowMat = new THREE.MeshBasicMaterial({
+      map: shadowTex, transparent: true, opacity: 0, depthWrite: false
+    });
+    const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+    shadow.position.set(0, -10, -2);
+    shadow.renderOrder = 0;
+    group.add(shadow);
+
+    // image plane
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0, depthWrite: false
+    });
+    const mesh = new THREE.Mesh(cardGeo, mat);
+    mesh.renderOrder = 1;
+    group.add(mesh);
+
+    scene.add(group);
+
+    const tex = loader.load(IMAGES[i], (t) => {
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      coverTexture(t);
+      mat.map = t;
+      mat.needsUpdate = true;
+    });
+
+    cards.push({
+      group, mesh, mat, shadow, shadowMat,
+      dir: dir.clone(),
+      phase: Math.random() * Math.PI * 2,   // bob phase offset
+      enterStart: i * STAGGER,
+      hover: 0,            // 0..1 hover progress
+      holdDir: dir.clone(),
+      holding: false
+    });
+  });
+
+  // ----------------------------------------------------------------------
+  // Center logo (canvas texture plane at sphere center)
+  // ----------------------------------------------------------------------
+  let logoMesh, logoMat, logoCanvas, logoCtx, logoTex;
+  function logoWidth() {
+    // Smaller, viewport-proportional logo on mobile (~2.5–3rem text).
+    return isMobile ? Math.min(window.innerWidth * 0.62, 320) : viewportMin * 0.52;
+  }
+  function drawLogoText() {
+    const cw = logoCanvas.width, ch = logoCanvas.height;
+    const ctx = logoCtx;
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.fillStyle = isLight() ? '#1E1B18' : '#F2F0EB';   // ink on cream / warm light on dark
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '40px';
+    ctx.font = '300px "Tenor Sans", serif';
+    ctx.fillText('DE:N', cw / 2 + 20, ch / 2 + 10);
+  }
+  function buildLogo() {
+    const cw = 2048, ch = 512;
+    logoCanvas = document.createElement('canvas');
+    logoCanvas.width = cw; logoCanvas.height = ch;
+    logoCtx = logoCanvas.getContext('2d');
+    drawLogoText();
+
+    const tex = new THREE.CanvasTexture(logoCanvas);
+    logoTex = tex;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+    logoMat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, opacity: 0, depthWrite: false
+    });
+    const aspect = cw / ch;
+    const logoW = logoWidth();
+    logoMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(logoW, logoW / aspect),
+      logoMat
+    );
+    logoMesh.position.set(0, centerY, 0);   // sphere centre; depth set each frame
+    scene.add(logoMesh);
+  }
+
+  // Wait for the font so the logo renders crisply
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.load('300px "Tenor Sans"').then(() => {
+      document.fonts.ready.then(buildLogo);
+    });
+  } else {
+    buildLogo();
+  }
+
+  // ----------------------------------------------------------------------
+  // Interaction state
+  // ----------------------------------------------------------------------
+  let yaw = 0;
+  let pitch = 0;
+  let yawVel = 0;     // extra velocity beyond idle (rad/s)
+  let dragging = false;
+  let lastX = 0, lastY = 0;
+  let lastMoveTime = 0;
+  let pointerDownTime = 0;
+  let downX = 0, downY = 0, moved = false;   // tap-vs-drag tracking
+
+  const raycaster = new THREE.Raycaster();
+  const pointerNDC = new THREE.Vector2();
+  let pointerInside = false;
+
+  // ----------------------------------------------------------------------
+  // Project page state
+  // ----------------------------------------------------------------------
+  // mode: 'hero' (orbiting) | 'enter' (transitioning in) | 'project' (resting)
+  //       | 'exit' (transitioning back)
+  let mode = 'hero';
+  let activeCard = -1;            // index of the clicked card
+  let bobTime = 0;               // bob clock; advances only in hero mode (freezes on click)
+  let sceneFade = 1;             // multiplies opacity of non-active cards + logo
+  let fade = null;               // { t0, durMs, from, to } timed fade animation
+
+  // One service per image (orbit order matches Visuals/01..12).
+  const SERVICES = [
+    {
+      title: 'AI Receptionist',
+      eyebrow: 'Always On',
+      p1: 'An always-on AI receptionist that answers every call and message the moment it arrives — greeting customers, answering questions, qualifying leads, and booking appointments straight into your calendar. It never sleeps, never misses, and always sounds like your brand.',
+      p2: 'Built on conversational voice and chat agents wired into your real tools, it handles the repetitive front-desk work so your team can focus on the customers who need a human. Fewer missed opportunities, faster responses, lower overhead.'
+    },
+    {
+      title: 'Marketing Campaigns',
+      eyebrow: 'The Engine',
+      p1: 'A complete social marketing engine that plans, produces, and publishes content across every platform from a single brief. We turn one idea into a coordinated campaign — copy, visuals, and video — tuned to each channel and audience.',
+      p2: 'Powered by automated cloud workflows, the system researches, generates, schedules, and reports without the manual grind. Facebook, TikTok, YouTube, and Instagram run as connected sub-channels of one strategy — each is its own service further around the orbit.'
+    },
+    {
+      title: 'AI Video Creation',
+      eyebrow: 'Motion',
+      p1: 'Cinematic, scroll-stopping video generated at the speed of your ideas. From product films to ads to social cut-downs, we produce polished motion content without a film crew, a studio, or weeks of turnaround.',
+      p2: 'Using the latest generative video models and tight creative direction, every clip is on-brand, platform-ready, and built to convert. Scale from one hero film to dozens of variations for testing.'
+    },
+    {
+      title: 'Web & Shopify Design',
+      eyebrow: 'Build',
+      p1: 'Conversion-focused websites and Shopify storefronts designed to feel premium and sell. Clean, fast, and unmistakably yours — from the first scroll all the way to checkout.',
+      p2: 'We handle design, build, and the details that move the needle: page speed, product storytelling, and a buying experience customers trust. Launch-ready stores and sites that grow with your business.'
+    },
+    {
+      title: 'UGC',
+      eyebrow: 'Authentic Content',
+      p1: 'Authentic, creator-style content that feels native to the feed and earns attention the way polished ads no longer can. Real-feeling hooks, honest tone, and the formats audiences actually stop for.',
+      p2: 'We produce UGC at volume so you always have fresh creative to test and scale — without chasing creators, managing shoots, or waiting weeks for deliverables.'
+    },
+    {
+      title: 'Tutorials',
+      eyebrow: 'Educate',
+      p1: 'Clear, watchable how-to content that turns your product into something people understand and want. Step-by-step explainers that reduce support load and move buyers off the fence.',
+      p2: 'We script, produce, and package tutorials for every stage — onboarding, features, and advanced use — so customers reach value faster and stay longer.'
+    },
+    {
+      title: 'Unboxing',
+      eyebrow: 'First Impressions',
+      p1: 'First-impression content built around the moment customers care about most: opening the box. We capture the anticipation, the reveal, and the detail that makes a product feel worth it.',
+      p2: 'Designed for social discovery, our unboxing pieces drive desire and credibility — the kind of content that turns scrollers into buyers.'
+    },
+    {
+      title: 'Product Reviews',
+      eyebrow: 'Trust',
+      p1: 'Honest, persuasive review-style content that builds trust and answers the questions buyers ask before they commit. Real benefits, real use cases, no empty hype.',
+      p2: 'We craft reviews that read as credible and convert — perfect for landing pages, ads, and the research moment that decides the sale.'
+    },
+    {
+      title: 'Facebook',
+      eyebrow: 'Channel · Meta',
+      p1: 'Facebook content, generated and published on autopilot. As a sub-channel of your Marketing Campaign, the system produces posts, images, and video tailored to how people browse and buy on Meta.',
+      p2: 'Cloud workflows handle the full loop — create, schedule, post, and learn — so your Facebook presence stays consistent and always-on without manual effort.'
+    },
+    {
+      title: 'TikTok',
+      eyebrow: 'Channel · Short-Form',
+      p1: 'Short-form TikTok content produced automatically and tuned to the platform’s fast, native rhythm. Hooks in the first second, trends baked in, and the volume to keep testing.',
+      p2: 'Part of the Marketing Campaign engine, your TikTok channel is fed by workflows that generate and publish a steady stream of video built to be discovered.'
+    },
+    {
+      title: 'YouTube',
+      eyebrow: 'Channel · Long-Form',
+      p1: 'Long-form videos and Shorts for YouTube, generated and managed through automated workflows. From thumbnails to scripts to uploads, your channel keeps shipping.',
+      p2: 'As a sub-channel of your Marketing Campaign, YouTube becomes a searchable, compounding library of content that works for you long after it’s published.'
+    },
+    {
+      title: 'Instagram',
+      eyebrow: 'Channel · Visual',
+      p1: 'Visual-first Instagram content — Reels, carousels, and posts — generated to match your aesthetic and the platform’s pace. Designed to grow reach and keep your grid alive.',
+      p2: 'Run by the same Marketing Campaign engine, your Instagram channel is produced and scheduled automatically, so the feed never goes quiet.'
+    }
+  ];
+  const PROJECT_NAMES = SERVICES.map(s => s.title);
+
+  const projectEl = document.getElementById('project');
+  const projectImg = document.getElementById('project-img');
+  const projectText = document.getElementById('project-text');
+  const pTitle = document.getElementById('p-title');
+  const revealEls = ['p-title', 'p-eyebrow', 'p-1', 'p-2'].map(id => document.getElementById(id));
+  const hamburgerEl = document.getElementById('hamburger');
+  const mobileMenuEl = document.getElementById('mobile-menu');
+
+  function startFade(to, durSec) {
+    fade = { t0: performance.now(), durMs: durSec * 1000, from: sceneFade, to };
+  }
+
+  function onPointerDown(e) {
+    if (mode !== 'hero') return;   // ignore canvas interaction while in a project
+    dragging = true;
+    canvas.classList.add('dragging');
+    lastX = e.clientX; lastY = e.clientY;
+    downX = e.clientX; downY = e.clientY; moved = false;
+    pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    lastMoveTime = performance.now();
+    pointerDownTime = performance.now();
+    yawVel = 0;
+    canvas.setPointerCapture?.(e.pointerId);
+  }
+
+  function onPointerMove(e) {
+    // update NDC for hover raycast
+    pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    pointerInside = true;
+
+    if (!dragging) return;
+    if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) moved = true;
+    const now = performance.now();
+    const dt = Math.max((now - lastMoveTime) / 1000, 1e-4);
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+
+    const yawDelta = dx * 0.006;
+    yaw += yawDelta;
+    pitch = THREE.MathUtils.clamp(pitch + dy * 0.006, -MAX_TILT, MAX_TILT);
+
+    yawVel = yawDelta / dt;   // for momentum on release
+    lastX = e.clientX; lastY = e.clientY;
+    lastMoveTime = now;
+  }
+
+  function onPointerUp(e) {
+    if (!dragging) return;
+    dragging = false;
+    canvas.classList.remove('dragging');
+    canvas.releasePointerCapture?.(e.pointerId);
+
+    // A tap (no real drag) on a card opens its project page.
+    if (!moved && mode === 'hero') {
+      raycaster.setFromCamera(pointerNDC, camera);
+      let best = -1, bestDist = Infinity;
+      for (let i = 0; i < cards.length; i++) {
+        if (!cards[i].mesh.visible) continue;
+        const hit = raycaster.intersectObject(cards[i].mesh, false);
+        if (hit.length && hit[0].distance < bestDist) { bestDist = hit[0].distance; best = i; }
+      }
+      if (best >= 0) { enterProject(best); return; }
+    }
+    // otherwise it was a drag — clamp fling velocity for momentum
+    yawVel = THREE.MathUtils.clamp(yawVel, -6, 6);
+  }
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointerleave', () => { pointerInside = false; });
+
+  window.addEventListener('resize', () => {
+    layout();
+    if (logoMesh) {
+      const aspect = 2048 / 512;
+      const logoW = logoWidth();
+      logoMesh.geometry.dispose();
+      logoMesh.geometry = new THREE.PlaneGeometry(logoW, logoW / aspect);
+      logoMesh.position.set(0, centerY, 0);
+    }
+  });
+
+  // ----------------------------------------------------------------------
+  // Animation loop
+  // ----------------------------------------------------------------------
+  const tmp = new THREE.Vector3();
+  const rotM = new THREE.Matrix4();
+  const qx = new THREE.Quaternion();
+  const qy = new THREE.Quaternion();
+  const xAxis = new THREE.Vector3(1, 0, 0);
+  const yAxis = new THREE.Vector3(0, 1, 0);
+  const toCam = new THREE.Vector3();
+
+  const clock = new THREE.Clock();
+  let elapsed = 0;
+  let navShown = false;
+  let hoveredIndex = -1;
+
+  function buildRotationMatrix() {
+    // tilt (pitch) about X, then yaw about Y
+    qx.setFromAxisAngle(xAxis, pitch);
+    qy.setFromAxisAngle(yAxis, yaw);
+    qy.multiply(qx);
+    rotM.makeRotationFromQuaternion(qy);
+  }
+
+  function updateHover() {
+    if (dragging || !pointerInside) { hoveredIndex = -1; return; }
+    raycaster.setFromCamera(pointerNDC, camera);
+    let best = -1, bestDist = Infinity;
+    for (let i = 0; i < cards.length; i++) {
+      const hit = raycaster.intersectObject(cards[i].mesh, false);
+      if (hit.length && hit[0].distance < bestDist) {
+        bestDist = hit[0].distance;
+        best = i;
+      }
+    }
+    hoveredIndex = best;
+  }
+
+  function step(dt) {
+    elapsed += dt;
+    const heroMode = (mode === 'hero');
+    if (heroMode) bobTime += dt;          // freeze bob the moment a card is clicked
+
+    // timed scene fade (non-active cards + center logo)
+    if (fade) {
+      const k = Math.min(1, (performance.now() - fade.t0) / fade.durMs);
+      sceneFade = fade.from + (fade.to - fade.from) * k;
+      if (k >= 1) fade = null;
+    }
+
+    // ---- rotation integration (frozen outside hero mode) ----
+    if (heroMode && !dragging) {
+      yaw += (IDLE_YAW_SPEED + yawVel) * dt;
+      // friction ease-out toward idle (~3s settle)
+      yawVel *= Math.exp(-dt / 0.7);
+      if (Math.abs(yawVel) < 1e-4) yawVel = 0;
+      // ease tilt back to level over ~3s
+      pitch += (0 - pitch) * (1 - Math.exp(-dt / 1.1));
+    }
+
+    buildRotationMatrix();
+    if (heroMode) updateHover();
+
+    // ---- per-card update ----
+    for (let i = 0; i < cards.length; i++) {
+      const c = cards[i];
+
+      // entrance progress
+      const eIn = THREE.MathUtils.clamp(
+        (elapsed - c.enterStart) / CARD_ENTER_DUR, 0, 1
+      );
+      const ease = eIn < 1 ? (1 - Math.pow(1 - eIn, 3)) : 1; // easeOutCubic
+      const enterOpacity = ease;
+      const enterScale = 0.7 + 0.3 * ease;
+
+      // hover progress (rise 0.4s, fall 0.6s) — frozen outside hero mode so a
+      // clicked card holds its scale/position
+      if (heroMode) {
+        const isHover = (i === hoveredIndex);
+        if (isHover && !c.holding) {
+          // capture current orbit direction to "hold" position
+          c.holdDir.copy(c.dir).applyMatrix4(rotM);
+          c.holding = true;
+        } else if (!isHover) {
+          c.holding = false;
+        }
+        const hoverTarget = isHover ? 1 : 0;
+        const hoverRate = isHover ? (dt / 0.4) : (dt / 0.6);
+        c.hover += (hoverTarget - c.hover) * Math.min(1, hoverRate * 2.2);
+        c.hover = THREE.MathUtils.clamp(c.hover, 0, 1);
+      }
+      const hEase = c.hover * c.hover * (3 - 2 * c.hover); // smoothstep
+
+      // orbit direction
+      tmp.copy(c.dir).applyMatrix4(rotM);
+      // blend toward held direction while hovering
+      if (c.hover > 0.001) {
+        tmp.lerp(c.holdDir, hEase).normalize();
+      }
+
+      // world position on the (flattened) ellipsoid, centred below the nav
+      let px = tmp.x * radiusX;
+      let py = tmp.y * radiusY + centerY;
+      let pz = tmp.z * radiusZ;
+
+      // depth-based shrink: cards on the back half (behind the logo) shrink the
+      // most, front-half cards stay full size. tmp.z is in [-1, 1].
+      const depthT = (tmp.z + 1) / 2;                       // 0 (back) .. 1 (front)
+      const depthScale = DEPTH_SCALE_MIN + (DEPTH_SCALE_MAX - DEPTH_SCALE_MIN) * depthT;
+      // depth-based opacity: nearer/larger cards are more opaque, farther/smaller
+      // cards fade out, deepening the sense of 3D space.
+      const depthOpacity = DEPTH_OPACITY_MIN + (DEPTH_OPACITY_MAX - DEPTH_OPACITY_MIN) * depthT;
+
+      // bob
+      py += BOB_AMPLITUDE * Math.sin(bobTime * (Math.PI * 2 / BOB_PERIOD) + c.phase);
+
+      // mobile: roll the orbit around the view axis so it sweeps vertically
+      if (isMobile) {
+        const rx = px, ry = py - centerY;
+        px = rx * rollCos - ry * rollSin;
+        py = centerY + rx * rollSin + ry * rollCos;
+      }
+
+      // forward toward camera on hover
+      if (c.hover > 0.001) {
+        toCam.set(camera.position.x - px, camera.position.y - py, camera.position.z - pz).normalize();
+        const fwd = HOVER_FORWARD * hEase;
+        px += toCam.x * fwd; py += toCam.y * fwd; pz += toCam.z * fwd;
+      }
+
+      c.group.position.set(px, py, pz);
+
+      // billboard: face the camera
+      c.group.lookAt(camera.position);
+
+      // scale (entrance * depth * hover * responsive card size)
+      const sc = enterScale * depthScale * (1 + (HOVER_SCALE - 1) * hEase);
+      c.group.scale.setScalar(sc * cardScale);
+
+      // opacity (entrance * depth, lifting to full when hovered/brought forward)
+      const opacity = depthOpacity + (1 - depthOpacity) * hEase;
+      // non-active cards fade out during the transition; the clicked card holds.
+      const sf = (i === activeCard) ? 1 : sceneFade;
+      c.mat.opacity = enterOpacity * opacity * sf;
+      // shadow: idle subtle -> deeper on hover, gated by entrance & depth
+      c.shadowMat.opacity = enterOpacity * opacity * (0.35 + 0.55 * hEase) * sf;
+      c.shadow.position.y = -10 - 8 * hEase;
+
+      // Render order strictly by distance to the camera so the logo (at the
+      // sphere centre) correctly layers between front and back cards.
+      const dist = camera.position.distanceTo(c.group.position);
+      c.mesh.renderOrder = -dist;
+      c.shadow.renderOrder = -dist - 0.5;
+    }
+
+    // ---- logo ----
+    if (logoMesh) {
+      logoMesh.lookAt(camera.position);
+      // logo sits at the sphere centre; its render order is its camera distance
+      logoMesh.renderOrder = -camera.position.distanceTo(logoMesh.position);
+      const logoIn = THREE.MathUtils.clamp((elapsed - NAV_DELAY) / 1.0, 0, 1);
+      logoMat.opacity = logoIn * sceneFade;
+    }
+
+    // ---- reveal nav after first few cards ----
+    if (!navShown && elapsed > NAV_DELAY) {
+      navEl.classList.add('visible');
+      navShown = true;
+    }
+  }
+
+  // ----------------------------------------------------------------------
+  // Project page transitions
+  // ----------------------------------------------------------------------
+
+  // Screen-pixel bounding box of a card's plane in its current pose.
+  const _rc = new THREE.Vector3();
+  function cardScreenRect(group) {
+    camera.updateMatrixWorld();
+    group.updateWorldMatrix(true, false);
+    const W = window.innerWidth, H = window.innerHeight;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const corners = [[-CARD_W/2,-CARD_H/2],[CARD_W/2,-CARD_H/2],[-CARD_W/2,CARD_H/2],[CARD_W/2,CARD_H/2]];
+    for (const [x, y] of corners) {
+      _rc.set(x, y, 0).applyMatrix4(group.matrixWorld).project(camera);
+      const sx = (_rc.x * 0.5 + 0.5) * W, sy = (-_rc.y * 0.5 + 0.5) * H;
+      minX = Math.min(minX, sx); maxX = Math.max(maxX, sx);
+      minY = Math.min(minY, sy); maxY = Math.max(maxY, sy);
+    }
+    return { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
+  }
+
+  // Final right-column image rect, derived from the nav so paddings match exactly.
+  // The image is shown uncropped: its height fills the available column height
+  // and its width follows from the photo's native aspect ratio. It is then
+  // pinned to the right edge (aligned with CONTACT).
+  function computeImageRect() {
+    const links = document.querySelectorAll('.nav-link');
+    const padLeft = links[0].getBoundingClientRect().left;   // INDEX inset from left
+    const navBottom = navEl.getBoundingClientRect().bottom;
+    const availH = window.innerHeight - navBottom;
+
+    // Square image (matches the square source art), kept compact.
+    const S = Math.min(availH * 0.62, window.innerWidth * 0.34, 460);
+
+    // Compact, centred two-column group: [ text ][ gutter ][ square image ]
+    const textW = Math.min(360, window.innerWidth * 0.30);
+    const gutter = Math.max(48, window.innerWidth * 0.05);
+    const groupW = textW + gutter + S;
+    const groupLeft = (window.innerWidth - groupW) / 2;
+
+    const top = navBottom + (availH - S) / 2;             // vertically centred
+    const left = groupLeft + textW + gutter;              // image on the right of centre
+    return { left, top, width: S, height: S, padLeft, textW, textLeft: groupLeft };
+  }
+
+  // Mobile final image rect: full width (minus nav padding), pinned below the
+  // nav, ~55vh tall. Matches where the in-flow image lands so the swap is seamless.
+  function computeMobileImageRect() {
+    const pad = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-pad')) || 20;
+    const navBottom = navEl.getBoundingClientRect().bottom;
+    const top = navBottom + 16;                 // ~1rem below the divider
+    const side = window.innerWidth - pad * 2;   // square, full width minus padding
+    return { left: pad, top, width: side, height: side, pad, navBottom };
+  }
+
+  function positionProjectText(fin) {
+    const t = document.getElementById('project-text');
+    t.style.left = fin.textLeft + 'px';                   // left column of the centred group
+    t.style.top = fin.top + 'px';                         // aligned with the image top
+    t.style.width = fin.textW + 'px';
+    t.style.height = fin.height + 'px';                   // same height as image → text vertically centred against it
+  }
+
+  // "Back to sphere" button sits just above the image, aligned to its right edge.
+  function positionBack(fin) {
+    const back = document.getElementById('project-back');
+    back.style.left = 'auto';
+    back.style.right = (window.innerWidth - (fin.left + fin.width)) + 'px';
+    back.style.top = (fin.top - 32) + 'px';               // ~1rem gap above the image
+  }
+
+  const EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';          // ease-in-out
+  function imgMoveTransition(dur) {
+    return `top ${dur}s ${EASE}, left ${dur}s ${EASE}, width ${dur}s ${EASE}, height ${dur}s ${EASE}, opacity 0.6s ease, box-shadow ${dur}s ease`;
+  }
+
+  function enterProject(i) {
+    if (mode !== 'hero') return;
+    mode = 'enter';
+    activeCard = i;
+    dragging = false; canvas.classList.remove('dragging');
+    hoveredIndex = -1;
+
+    // Phase 1 (≈0.6s): others + center logo fade out; clicked card holds (frozen).
+    startFade(0, 0.5);
+    const svc = SERVICES[i % SERVICES.length];
+    pTitle.textContent = svc.title;
+    document.getElementById('p-eyebrow').textContent = svc.eyebrow;
+    document.getElementById('p-1').textContent = svc.p1;
+    document.getElementById('p-2').textContent = svc.p2;
+    revealEls.forEach(el => { el.style.transitionDelay = '0s'; el.classList.remove('show'); });
+    projectEl.classList.add('active');
+
+    // Preload/decode the full image now (while it stays hidden) so it is ready
+    // by the handoff and does not flicker in when first displayed.
+    projectImg.src = IMAGES[i];
+    if (projectImg.decode) projectImg.decode().catch(() => {});
+
+    setTimeout(() => {
+      if (mode !== 'enter') return;
+      // Phase 2 Step A (1.0s): hand the frozen card off to a DOM image, fly it
+      // to the right column, scaling up and dropping its shadow.
+      const c = cards[i];
+      const rect = cardScreenRect(c.group);
+      c.startRect = rect;
+      const held = c.mat.opacity;
+      c.mesh.visible = false; c.shadow.visible = false;
+
+      // Start the image as a fixed plane exactly over the frozen card.
+      projectImg.classList.remove('m-inflow');
+      projectImg.style.position = 'fixed';
+      projectImg.style.transition = 'none';
+      projectImg.style.display = 'block';
+      projectImg.style.left = rect.left + 'px';
+      projectImg.style.top = rect.top + 'px';
+      projectImg.style.width = rect.width + 'px';
+      projectImg.style.height = rect.height + 'px';
+      projectImg.style.opacity = String(held);
+      projectImg.style.boxShadow = '0 12px 40px rgba(42, 37, 32, 0.15)';
+      void projectImg.offsetWidth;                        // commit start state
+
+      const fin = isMobile ? computeMobileImageRect() : computeImageRect();
+      if (isMobile) {
+        // configure the scroll container; clear any desktop inline text styles
+        ['left', 'top', 'width', 'height'].forEach(p => projectText.style[p] = '');
+        projectEl.style.paddingTop = fin.top + 'px';
+        projectEl.scrollTop = 0;
+      } else {
+        positionProjectText(fin);
+        positionBack(fin);
+      }
+      projectImg.style.transition = imgMoveTransition(1.0);
+      projectImg.style.left = fin.left + 'px';
+      projectImg.style.top = fin.top + 'px';
+      projectImg.style.width = fin.width + 'px';
+      projectImg.style.height = fin.height + 'px';
+      projectImg.style.opacity = '1';
+      projectImg.style.boxShadow = 'none';
+      mode = 'project-anim';
+
+      // Step B (after the image lands): cascade the text in, top to bottom.
+      setTimeout(() => {
+        if (mode !== 'project-anim') return;
+        if (isMobile) {
+          // hand the fixed image into the scroll flow at the top, seamlessly
+          ['position', 'left', 'top', 'width', 'height'].forEach(p => projectImg.style[p] = '');
+          projectImg.classList.add('m-inflow');
+        }
+        const delays = [0, 0.15, 0.30, 0.45];             // title, eyebrow, p1, p2
+        revealEls.forEach((el, k) => { el.style.transitionDelay = delays[k] + 's'; el.classList.add('show'); });
+        mode = 'project';
+      }, 1000);
+    }, 600);
+  }
+
+  function returnToHero() {
+    if (mode !== 'project') return;
+    mode = 'exit';
+
+    // 1. Text out, reverse stagger (bottom -> top), ≈0.4s total.
+    const outDelays = [0.18, 0.12, 0.06, 0];              // title last, p2 first
+    revealEls.forEach((el, k) => { el.style.transitionDelay = outDelays[k] + 's'; el.classList.remove('show'); });
+
+    setTimeout(() => {
+      if (mode !== 'exit') return;
+      // 2. Image flies back to its sphere position (0.8s), shadow returns.
+      const c = cards[activeCard];
+      const rect = c.startRect || cardScreenRect(c.group);
+
+      if (isMobile) {
+        // pull the in-flow image back out to a fixed plane at its current spot
+        const r = projectImg.getBoundingClientRect();
+        projectImg.classList.remove('m-inflow');
+        projectImg.style.position = 'fixed';
+        projectImg.style.transition = 'none';
+        projectImg.style.left = r.left + 'px';
+        projectImg.style.top = r.top + 'px';
+        projectImg.style.width = r.width + 'px';
+        projectImg.style.height = r.height + 'px';
+        projectImg.style.boxShadow = '0 12px 40px rgba(42, 37, 32, 0.15)';
+        void projectImg.offsetWidth;
+      }
+
+      projectImg.style.transition = imgMoveTransition(0.8);
+      projectImg.style.left = rect.left + 'px';
+      projectImg.style.top = rect.top + 'px';
+      projectImg.style.width = rect.width + 'px';
+      projectImg.style.height = rect.height + 'px';
+      projectImg.style.boxShadow = '0 12px 40px rgba(42, 37, 32, 0.15)';
+
+      setTimeout(() => {
+        if (mode !== 'exit') return;
+        // 3. Restore the card, fade others + logo back in (0.5s), resume orbit.
+        projectImg.style.display = 'none';
+        ['position', 'left', 'top', 'width', 'height'].forEach(p => projectImg.style[p] = '');
+        projectImg.classList.remove('m-inflow');
+        projectEl.style.paddingTop = '';
+        projectEl.scrollTop = 0;
+        c.mesh.visible = true; c.shadow.visible = true;
+        projectEl.classList.remove('active');
+        activeCard = -1;
+        startFade(1, 0.5);
+        mode = 'hero';
+      }, 800);
+    }, 400);
+  }
+
+  // Desktop INDEX returns to the sphere; Escape does too.
+  document.querySelectorAll('.nav-link')[0].addEventListener('click', (e) => {
+    e.preventDefault();
+    if (mode === 'project') returnToHero();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && mode === 'project') returnToHero();
+  });
+
+  // "Back to sphere" control on the project page (returnToHero guards the mode).
+  document.getElementById('project-back').addEventListener('click', returnToHero);
+
+  // ---- Theme toggle (dark / light) ----
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('sphere-theme', theme); } catch (e) {}
+    // Repaint the canvas textures that CSS variables can't reach.
+    if (logoTex) { drawLogoText(); logoTex.needsUpdate = true; }
+    if (shadowTex) { drawShadow(); shadowTex.needsUpdate = true; }
+  }
+  document.querySelectorAll('.theme-toggle').forEach(btn => {
+    btn.addEventListener('click', () => applyTheme(isLight() ? 'dark' : 'light'));
+  });
+
+  // ---- Mobile menu ----
+  function openMenu() {
+    mobileMenuEl.classList.add('open');
+    hamburgerEl.classList.add('open');
+    hamburgerEl.setAttribute('aria-label', 'Close menu');
+  }
+  function closeMenu() {
+    mobileMenuEl.classList.remove('open');
+    hamburgerEl.classList.remove('open');
+    hamburgerEl.setAttribute('aria-label', 'Open menu');
+  }
+  hamburgerEl.addEventListener('click', () => {
+    mobileMenuEl.classList.contains('open') ? closeMenu() : openMenu();
+  });
+  document.querySelectorAll('#mobile-menu .m-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      closeMenu();
+      if (link.dataset.nav === 'index') {        // "Home" returns to the sphere
+        e.preventDefault();
+        if (mode === 'project') returnToHero();
+        return;
+      }
+      if (!link.getAttribute('href')) e.preventDefault();  // placeholder links go nowhere; real hrefs (Blog) navigate
+    });
+  });
+  // On mobile the brand doubles as a "back" control inside a project.
+  document.querySelector('.nav-brand-mobile').addEventListener('click', () => {
+    if (mode === 'project') returnToHero();
+  });
+
+  // Keep the project layout aligned on resize while it is showing.
+  window.addEventListener('resize', () => {
+    if (mode !== 'project') return;
+    if (isMobile) {
+      // in-flow image is CSS-sized; just keep it clear of the nav
+      projectEl.style.paddingTop = computeMobileImageRect().top + 'px';
+    } else {
+      const fin = computeImageRect();
+      projectImg.style.transition = 'none';
+      projectImg.style.left = fin.left + 'px';
+      projectImg.style.top = fin.top + 'px';
+      projectImg.style.width = fin.width + 'px';
+      projectImg.style.height = fin.height + 'px';
+      positionProjectText(fin);
+      positionBack(fin);
+    }
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    step(dt);
+    renderer.render(scene, camera);
+  }
+  animate();
+  </script>
+</body>
+</html>

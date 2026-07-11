@@ -168,6 +168,12 @@ After the vault is built, offer to install the companion tools that make the ful
 - **gstack** — browser QA / review / ship
 - **Obsidian** — the app to read this vault (you install this one yourself)
 
+**Optional creative branch:** if their work (from the Phase B interview) includes building websites or AI-generated video, also mention the **`studio` plugin** — web design & AI video toolkit from this same marketplace (3D hero website template, listing-to-walkthrough-video pipeline, storyboarding, video prompt building) — and point them to `docs/creative-stack.md` in the marketplace repo for the third-party half (ui-ux-pro-max, Higgsfield prompt skill, ffmpeg). Install command if they want it:
+
+```bash
+claude plugin install studio@deen-system
+```
+
 Then ask with one `AskUserQuestion` (header `Environment`):
 - Question: "Want me to set these up for you now? I can install most of them for you; anything I can't (like the Obsidian app) I'll give you the exact steps for."
 - Options: `Yes — install what you can` · `Let me pick which ones` · `No — I'll do it myself`
