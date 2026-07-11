@@ -52,7 +52,7 @@ Per-feature engineering pipeline for products that already exist: `/sdd:specify`
 
 Two parts, used at two different stages:
 
-- **Safety hooks — active from day one, automatically.** Once installed, every project on your machine is protected: edits that introduce secrets (API keys, tokens) are blocked, `.env`/key/lock files can't be touched, dangerous commands (force-push, `rm -rf`, `DROP TABLE`, `curl | sh`) are stopped. You do nothing — they're silent until something risky happens.
+- **Safety hooks — active from the first day, automatically.** Once installed, every project on your machine is protected: edits that introduce secrets (API keys, tokens) are blocked, `.env`/key/lock files can't be touched, dangerous commands (force-push, `rm -rf`, `DROP TABLE`, `curl | sh`) are stopped. You do nothing — they're silent until something risky happens.
 - **`/guardrails:rules` — run ONCE per project, and only when the project is mature.** The right moment is when your product is live and its conventions have settled (the same moment you switch to SDD). It scans the codebase and writes path-scoped coding rules (`.claude/rules/`) that Claude loads automatically when editing matching files. Don't run it on a fresh or empty project — rules distilled from nothing are noise.
 
 - **Source:** part of this marketplace (`deen-system`)

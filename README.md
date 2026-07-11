@@ -57,9 +57,13 @@ How they fit: **Deen** = your context + session continuity · **Superpowers** = 
 
 **New here? Start with the walkthrough:** [docs/starting-a-new-project.md](docs/starting-a-new-project.md) — a step-by-step guide from "I have an idea" (or a spec document) to a live product, with the exact command to run at every stage.
 
+**Before your first project:** [docs/github-setup.md](docs/github-setup.md) — install and authenticate the `gh` CLI so your agent can create repos, open PRs, and file issues.
+
+**After your product is live:** [docs/post-release-support.md](docs/post-release-support.md) — the post-release support system: session-replay bug reports (PostHog), uptime + error alerts, the three support tiers with AI-assisted triage, and the Red Lamp debugging rule.
+
 ## Requirements
 
-- Claude Code. `git` is used when present (falls back gracefully). Nothing else is required to run the plugin itself; the tools above are recommended for the full workflow.
+- Claude Code. `git` is used when present (falls back gracefully). Nothing else is required to run the plugin itself; the tools above are recommended for the full workflow, and the [`gh` CLI](docs/github-setup.md) is strongly recommended so agents can ship (repos, PRs, issues).
 
 ## License
 
