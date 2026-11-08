@@ -20,6 +20,11 @@
       "name": "studio",
       "source": "./plugins/studio",
       "description": "Web design & AI video toolkit: orbiting-sphere 3D hero website template (Three.js), property-listing-to-walkthrough-video pipeline (Apify + Higgsfield + ffmpeg), Seedance 2.0 storyboarding, and shot-by-shot AI video prompt building. Bring your own service accounts."
+    },
+    {
+      "name": "hub",
+      "source": "./plugins/hub",
+      "description": "Router + background workers: one session dispatches, steers, watches, evaluates and merges headless Claude Code worker sessions across projects, with a console board."
     }
   ]
 }

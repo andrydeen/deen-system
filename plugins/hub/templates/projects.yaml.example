@@ -1,0 +1,8 @@
+# name:            short key used in tickets
+#   path:          absolute project directory
+#   isolation:     worktree | none
+#   main:          main branch name (default main)
+example:
+  path: /absolute/path/to/project
+  isolation: worktree
+  main: main

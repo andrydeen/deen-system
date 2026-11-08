@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "hub",
+  "version": "0.1.0",
+  "description": "Router + background workers for Claude Code: dispatch, steer, watch, evaluate and merge headless worker sessions from one session.",
+  "author": {
+    "name": "Deen",
+    "url": "https://github.com/andrydeen"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/andrydeen/deen-system",
+  "repository": "https://github.com/andrydeen/deen-system",
+  "keywords": [
+    "workers",
+    "router",
+    "background",
+    "orchestration"
+  ]
+}
