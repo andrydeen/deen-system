@@ -354,7 +354,7 @@ questions with a red → green lamp each:
 
 Spike results go back into this document before the plan is written.
 
-**Spike result (2026-11-08):** `WORKER_AGENT_MODE=agent`, `EVENT_DELIVERY=PENDING_E_VALUE`. Lamps A, B, C, D green; Telegram sending from a second process green via Bot API, inbound half deferred to the first Router start. Two corrections to the worker contract: add `--allowedTools "Write,Edit,Read,Glob,Grep"` (the auto classifier denied a burst of parallel edits), and recognise interruption by a marker, not the exit code (SIGINT → exit 0, `result.subtype=error_during_execution`). Details: `docs/superpowers/specs/2026-11-07-hub-spike-results.md`.
+**Spike result (2026-11-08):** `WORKER_AGENT_MODE=agent`, `EVENT_DELIVERY=monitor`. Lamps A, B, C, D green; Telegram sending from a second process green via Bot API, inbound half deferred to the first Router start. Two corrections to the worker contract: add `--allowedTools "Write,Edit,Read,Glob,Grep"` (the auto classifier denied a burst of parallel edits), and recognise interruption by a marker, not the exit code (SIGINT → exit 0, `result.subtype=error_during_execution`). Details: `docs/superpowers/specs/2026-11-07-hub-spike-results.md`.
 
 ## 9. Phases (minimal v1)
 

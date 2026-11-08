@@ -9,14 +9,14 @@ Date: 2026-11-08 · Claude Code 2.1.319 · macOS · scratch repo under the sessi
 | C · interrupt then resume | PASS, with two corrections | `kill -INT` on the `claude -p` process stopped it within a second: 10 of 30 files written before, still 10 after. **Exit code was 0, not 130/143**, and the stream ended with `result.subtype=error_during_execution`, `result=null`. Resume with the "Interrupted by Din…" preamble: worker read `progress.log` + `git status`, listed f01–f10 exactly, created nothing, mtimes unchanged (`diff` of `stat` output empty). |
 | C′ · permission mode for file writes | FAIL under plain `auto`, PASS with `--allowedTools` | First attempt: the worker issued 16 parallel `Write` calls; every one came back `is_error=true` "The user doesn't want to proceed with this tool use" (auto classifier denial, `permission_denials=[]`), the round ended `error_during_execution` with no files and no report. A single `Write` under `auto` is allowed. With `--allowedTools "Write,Edit,Read,Glob,Grep"` added, all `Write` calls passed; `Bash` stays under the `auto` classifier. |
 | D · confinement to one allowed file | PASS | Prompt "change only README.md": `git status --porcelain` diff before/after shows only ` M README.md` (plus `progress.log`, which the agent body mandates). Worker used `Bash echo >>` rather than `Edit`, so confinement is by instruction, not by tool. |
-| E · event delivery into the Router via `Monitor` (`tail -n0 -F events.log`, 30-min timeout) | 2-min line PASS; 25-min line: PENDING_E | Line appended at t+2 min arrived as a Monitor event in the Router's context within a second. PENDING_E_DETAIL |
+| E · event delivery into the Router via `Monitor` (`tail -n0 -F events.log`, 30-min timeout) | PASS | Line appended at t+2 min arrived as a Monitor event in the Router's context within a second. Line appended at t+25 min (15:06:44) arrived as a Monitor event as well; the 30-min Monitor stayed armed throughout. No cron fallback needed; the Router re-arms the Monitor on expiry. |
 | F · Telegram | send PASS; receive deferred | Token lives in `~/.claude/channels/telegram/.env` (mode 0600); only `getUpdates` is exclusive per token (plugin `server.ts` comments, 409 handling), `sendMessage` is not. A direct Bot API `sendMessage` from a plain shell process to the configured chat id returned `ok=true, message_id=247`. So `hub propose` can notify Telegram itself without a plugin instance. The inbound half (reply arrives as a channel message in a `--channels` session) is checked at the first Router start in Task 10; the plugin failed to connect in this session and no poller process was running. |
 
 ## Decided values (read by `hub init`)
 
 ```
 WORKER_AGENT_MODE=agent
-EVENT_DELIVERY=PENDING_E_VALUE
+EVENT_DELIVERY=monitor
 ```
 
 ## Corrections carried into the plan
