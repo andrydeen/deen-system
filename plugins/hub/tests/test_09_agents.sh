@@ -11,7 +11,11 @@ end = lines.index("---", 1)
 fm = {}
 for l in lines[1:end]:
     k, _, v = l.partition(":")
-    fm[k.strip()] = v.strip()
+    v = v.strip()
+    if k.strip() == "description":
+        assert v.startswith('"') and v.endswith('"'), "description must be double-quoted"
+        v = v[1:-1]
+    fm[k.strip()] = v
 for kv in sys.argv[2:]:
     k, _, v = kv.partition("=")
     assert fm.get(k) == v, "%s: expected %r got %r" % (k, v, fm.get(k))
@@ -30,6 +34,10 @@ done
 n=$(wc -l < "$A/hub-router.md" | tr -d ' '); [ "$n" -le 125 ] || fail "router too long: $n"
 n=$(wc -l < "$A/hub-worker.md" | tr -d ' '); [ "$n" -le 20 ] || fail "worker too long: $n"
 for f in "$A/hub-router.md" "$A/hub-worker.md"; do
+  assert_eq 0 "$(grep -c -e 'Din' -e 'cust06' "$f")" "operator strings in $f"
+  grep -Eq '^description: ".*"$' "$f" || fail "description not quoted in $f"
+done
+for f in "$T"/*.md "$PLUGIN_ROOT/README.md"; do
   assert_eq 0 "$(grep -c -e 'Din' -e 'cust06' "$f")" "operator strings in $f"
 done
 

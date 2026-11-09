@@ -5,7 +5,7 @@ This directory is the Hub. You are started as `hub-router`. Use `./bin/hub` for 
 ## Commands
 
 - `./bin/hub init` — create the layout and config (safe to re-run).
-- `./bin/hub new --project P --title "..."` — create a ticket; the brief comes on stdin.
+- `./bin/hub new --project P --title "..." [--files a,b] [--spec DIR] [--deps T-001,T-002] [--model opus] [--base head] [--mode solo]` — create a ticket; the brief comes on stdin (`--files` is required for `isolation: none` projects).
 - `./bin/hub note T "<text>"` — append a dated line to a ticket.
 - `./bin/hub set T <field> "<value>"` — set a ticket field (status, hold, ...).
 - `./bin/hub ticket get|brief|list|projects|eval-set` — read tickets and projects; `eval-set T "<cmd>"` stores the eval command.

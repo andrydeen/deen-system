@@ -120,14 +120,15 @@ Environment knobs:
 | `HUB_MAX_BUDGET_USD` | 8 | `--max-budget-usd` per round |
 | `HUB_RETRY_BASE_S` | 30 | base backoff for transient API errors (3 tries) |
 | `HUB_EVAL_TIMEOUT_S` | 600 | eval timeout |
-| `HUB_TELEGRAM` | 0 | `1` enables Telegram posts |
+| `HUB_TELEGRAM` | on | Telegram posts are on unless set to `0` |
 | `TELEGRAM_ENV_FILE` | `~/.claude/channels/telegram/.env` | bot token file |
 | `HUB_TELEGRAM_API` | Telegram Bot API | API base URL override |
 
 ## Statuses
 
-Ticket: `open`, `running`, `waiting`, `blocked`, `ready`, `done`, `dropped`,
-`hold`, `failed`, `stopped`, `unknown-report`, `conflict`.
+Ticket: `open`, `running`, `blocked`, `ready`, `done`, `dropped`, `failed`,
+`stopped`, `unknown-report`, `conflict`. A hold is a ticket field
+(`hub set T hold "... | lift: ..."`), not a status.
 
 Run: `starting`, `queued`, `running`, `finishing`, `retrying N`, `interrupted`,
 `exited N`, `stopped`, `failed`.
@@ -155,3 +156,4 @@ so it needs no network, account or tokens, and leaves no processes behind.
   and reported.
 - The bot token is read from `TELEGRAM_ENV_FILE` at send time and never logged
   or written to tickets, events or approval records.
+- Telegram posting is on by default; set `HUB_TELEGRAM=0` or pass `--no-telegram` to keep approvals local.

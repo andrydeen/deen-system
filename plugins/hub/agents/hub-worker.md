@@ -1,6 +1,6 @@
 ---
 name: hub-worker
-description: Hub worker: one ticket, one project directory, reports in the four-line block.
+description: "Hub worker: one ticket, one project directory, reports in the four-line block."
 model: opus
 effort: medium
 tools: Read, Edit, Write, Bash, Grep, Glob, WebFetch, WebSearch, Agent
