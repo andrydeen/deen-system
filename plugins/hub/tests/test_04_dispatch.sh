@@ -1,34 +1,5 @@
 . "$(dirname "$0")/helpers.sh"
 
-ALL_TMP=""
-cleanup() {
-  pkill -f "$TESTS_DIR/fake-claude" 2>/dev/null
-  [ "${KEEP_TMP:-0}" = 1 ] && return 0
-  local d
-  for d in $ALL_TMP; do rm -r -f -- "$d"; done
-}
-trap cleanup EXIT
-
-# log_py <py-expr-on-list-of-entries> — evaluates against FAKE_CLAUDE_LOG (JSONL).
-log_py() {
-  python3 -c 'import json,sys
-E=[json.loads(l) for l in open(sys.argv[1]) if l.strip()]
-'"$1" "$FAKE_CLAUDE_LOG"
-}
-
-real() { python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
-
-setup_projects() {
-  setup_hub
-  ALL_TMP="$ALL_TMP $TMP_ROOT"
-  trap cleanup EXIT
-  mkdir -p "$HUB_DIR/demo proj" "$HUB_DIR/git proj"
-  ( cd "$HUB_DIR/git proj" && git init -q -b main && git config user.email t@t && git config user.name t \
-    && echo x > f && git add f && git commit -q -m init ) || fail "git init"
-  printf 'demo:\n  path: "%s/demo proj"\n  isolation: none\ngitproj:\n  path: "%s/git proj"\n  isolation: worktree\n' \
-    "$HUB_DIR" "$HUB_DIR" > "$HUB_DIR/projects.yaml"
-}
-
 last_line() { tail -n 1 "$HUB_DIR/.runs/events.log"; }
 
 test_dispatch_none() {
