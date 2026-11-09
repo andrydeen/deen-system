@@ -69,24 +69,36 @@ hub_build_cmd() {
     --max-turns "${HUB_MAX_TURNS:-150}" --max-budget-usd "${HUB_MAX_BUDGET_USD:-8}")
 }
 
-# hub_finish_round <ticket> <exit-code|dead|interrupted>
+# hub_finish_round <ticket> <exit-code|dead|interrupted|stopped>
+# The pid file is removed LAST in every branch: its disappearance tells waiters that
+# all bookkeeping is done.
 hub_finish_round() {
   local t="$1" how="$2" run="$HUB_DIR/.runs/$1" now st denied note off
   now=$(hub_now)
   case "$how" in
     interrupted)
       echo interrupted > "$run/status"
-      rm -f -- "$run/interrupted" "$run/pid"
+      rm -f -- "$run/interrupted"
       hub_slot_release "$t"
       hub_log "$t" "interrupted"
+      rm -f -- "$run/pid"
+      ;;
+    stopped)
+      echo stopped > "$run/status"
+      hub__tset "$t" status stopped
+      hub_slot_release "$t"
+      rm -f -- "$run/stop" "$run/interrupted"
+      echo "$now stopped $t" >> "$HUB_DIR/.runs/events.log"
+      hub_log "$t" "stopped"
+      rm -f -- "$run/pid"
       ;;
     dead)
       echo failed > "$run/status"
-      rm -f -- "$run/pid"
       hub_slot_release "$t"
       hub__tset "$t" status failed
       echo "$now failed $t worker died" >> "$HUB_DIR/.runs/events.log"
       hub_log "$t" "worker died"
+      rm -f -- "$run/pid"
       ;;
     *)
       off=$(cat "$run/events-offset" 2>/dev/null); off=${off:-0}
@@ -115,10 +127,10 @@ print("permission denied: %s" % dt[0] if dt and d.get("denied", 0) > 0 else
       hub__tset "$t" status "$st"
       echo "exited $how" > "$run/status"
       date "+%Y-%m-%dT%H:%M:%S" > "$run/ended"
-      rm -f -- "$run/pid"
       hub_slot_release "$t"
       echo "$now $st $t${note:+ $note}" >> "$HUB_DIR/.runs/events.log"
       hub_log "$t" "round ended: $st (exit $how)${note:+ — $note}"
+      rm -f -- "$run/pid"
       ;;
   esac
 }
@@ -128,6 +140,19 @@ print("permission denied: %s" % dt[0] if dt and d.get("denied", 0) > 0 else
 # claude binary would then ignore `kill -INT`.
 hub_exec_worker() {
   exec python3 -c 'import os,signal,sys; signal.signal(signal.SIGINT, signal.SIG_DFL); signal.signal(signal.SIGQUIT, signal.SIG_DFL); os.execvp(sys.argv[1], sys.argv[1:])' "$@"
+}
+
+# hub__wait_unless_marker <seconds> <run-dir> [both] — sleeps in 0.2 s steps; returns 1 as
+# soon as the stop marker (with "both": also interrupted) appears, 0 when the time is up.
+hub__wait_unless_marker() {
+  local steps i=0
+  steps=$(awk -v s="${1:-0}" 'BEGIN { n = int(s * 5); if (n < 1) n = 1; print n }')
+  while [ "$i" -lt "$steps" ]; do
+    [ -f "$2/stop" ] && return 1
+    [ "${3:-}" = both ] && [ -f "$2/interrupted" ] && return 1
+    sleep 0.2; i=$((i + 1))
+  done
+  return 0
 }
 
 # hub_round <ticket> <prompt-file> — runs one worker round to completion in this shell.
@@ -174,7 +199,12 @@ hub_round() {
   poll="${HUB_QUEUE_POLL_S:-10}"
   while ! slot=$(hub_slot_acquire "$t"); do
     echo queued > "$run/status"
-    sleep "$poll"
+    if ! hub__wait_unless_marker "$poll" "$run"; then
+      hub_lock "$run/lock"
+      hub_finish_round "$t" stopped
+      hub_unlock "$run/lock"
+      return 0
+    fi
   done
 
   hub_now > "$run/started"
@@ -184,39 +214,48 @@ hub_round() {
   touch "$run/events.jsonl" "$run/stderr.log"
   wc -c < "$run/events.jsonl" | tr -d ' ' > "$run/events-offset"
 
-  # Drain texts queued by `hub send` since the prompt was built.
+  # A marker left by an earlier round must not cancel this one.
   hub_lock "$run/lock"
-  if [ -d "$run/pending" ] && [ -n "$(ls -A "$run/pending" 2>/dev/null)" ]; then
-    local pf_i
-    printf '\n' >> "$pf"
-    for pf_i in "$run/pending"/*.md; do
-      cat "$pf_i" >> "$pf"; printf '\n' >> "$pf"
-      printf -- '- %s %s\n' "$(hub_now)" "$(cat "$pf_i")" >> "$run/briefs.log"
-      rm -f -- "$pf_i"
-    done
-  fi
-  echo running > "$run/status"   # only now may `hub send` interrupt this round
+  rm -f -- "$run/interrupted"
+  echo running > "$run/status"
   hub_unlock "$run/lock"
   base_s="${HUB_RETRY_BASE_S:-30}"
   while :; do
+    # Pre-launch checkpoint. claude-pid exists only while the worker process runs, so
+    # `hub send` / `hub stop` never signal this (SIGINT-ignoring) subshell.
+    hub_lock "$run/lock"
+    if [ -f "$run/stop" ]; then
+      hub_finish_round "$t" stopped; hub_unlock "$run/lock"; return 0
+    fi
+    if [ -f "$run/interrupted" ]; then
+      hub_finish_round "$t" interrupted; hub_unlock "$run/lock"; return 0
+    fi
+    hub__drain_pending "$t" "$pf" 1
     if [ -f "$run/session-started" ]; then sidmode=resume; else sidmode=first; fi
     hub_build_cmd "$t" "$pf" "$sidmode"
     soff=$(wc -c < "$run/stderr.log" | tr -d ' '); eoff=$(wc -c < "$run/events.jsonl" | tr -d ' ')
     ( cd "$cwd" && hub_exec_worker "${HUB_CMD[@]}" ) </dev/null >>"$run/events.jsonl" 2>>"$run/stderr.log" &
     pid=$!
+    echo "$pid" > "$run/claude-pid"
     echo "$pid" > "$run/pid"
     echo "$pid" > "$HUB_DIR/.runs/.slots/$slot/pid"
     # Known gap: a first attempt that fails before the real binary creates a session
     # makes --resume fail on retry ("No conversation found"). Future: detect that
     # message and fall back to --session-id.
     touch "$run/session-started"
+    hub_unlock "$run/lock"
     wait "$pid"; rc=$?
+    hub_lock "$run/lock"
+    rm -f -- "$run/claude-pid"
     echo "$HUB_LOCK_PID" > "$run/pid"
     echo "$HUB_LOCK_PID" > "$HUB_DIR/.runs/.slots/$slot/pid"
-    if [ -f "$run/interrupted" ]; then
-      hub_finish_round "$t" interrupted
-      return 0
+    if [ -f "$run/stop" ]; then
+      hub_finish_round "$t" stopped; hub_unlock "$run/lock"; return 0
+    elif [ -f "$run/interrupted" ]; then
+      hub_finish_round "$t" interrupted; hub_unlock "$run/lock"; return 0
     fi
+    echo finishing > "$run/status"
+    hub_unlock "$run/lock"
     if [ "$rc" -ne 0 ] && [ "$retry" -lt 3 ]; then
       matched=0
       tail -c +$((eoff + 1)) "$run/events.jsonl" > "$run/events-attempt.jsonl"
@@ -237,7 +276,7 @@ for l in open(sys.argv[1]):
       if [ "$matched" -eq 1 ]; then
         retry=$((retry + 1))
         echo "retrying $retry" > "$run/status"
-        sleep $(( base_s * (1 << (retry - 1)) ))
+        hub__wait_unless_marker $(( base_s * (1 << (retry - 1)) )) "$run" both || true
         echo running > "$run/status"
         continue
       fi
@@ -261,136 +300,28 @@ cmd_dispatch() {
   [ -n "$t" ] || hub_die "usage: hub dispatch <ticket> [--wait]"
   python3 "$HUB_LIB/tickets.py" get "$t" status >/dev/null || hub_die "unknown ticket: $t"
   run="$HUB_DIR/.runs/$t"
-  p=$(cat "$run/pid" 2>/dev/null)
-  # Note: two simultaneous dispatches of one ticket race here until Task 5's per-ticket lock covers it.
-  if hub_pid_alive "$p"; then hub_die "$t is already running"; fi
   mkdir -p "$run"
+  hub_lock "$run/lock"
+  p=$(cat "$run/pid" 2>/dev/null)
+  if hub_pid_alive "$p" || [ "$(cat "$run/status" 2>/dev/null)" = starting ]; then
+    hub_unlock "$run/lock"
+    hub_die "$t is already running"
+  fi
   rn=$(cat "$run/round" 2>/dev/null); rn=$(( ${rn:-0} + 1 ))
   pf="$run/prompt-$rn.md"
-  python3 "$HUB_LIB/tickets.py" brief "$t" > "$pf" || hub_die "cannot read brief of $t"
+  python3 "$HUB_LIB/tickets.py" brief "$t" > "$pf" || { hub_unlock "$run/lock"; hub_die "cannot read brief of $t"; }
+  rm -f -- "$run/stop"
+  echo starting > "$run/status"
   if [ "$wait" -eq 1 ]; then
+    hub_unlock "$run/lock"
     hub_round "$t" "$pf"
     return $?
   fi
   ( hub_round "$t" "$pf" ) >/dev/null 2>&1 &
   p=$!
   disown "$p" 2>/dev/null
+  echo "$p" > "$run/pid"
+  hub_unlock "$run/lock"
   echo "dispatched $t round $rn pid $p"
 }
 
-# hub_interrupt <ticket> — marks the round as interrupted and sends SIGINT. The caller
-# holds the ticket lock for this and does the waiting afterwards, outside the lock.
-hub_interrupt() {
-  local run="$HUB_DIR/.runs/$1" pid
-  pid=$(cat "$run/pid" 2>/dev/null)
-  touch "$run/interrupted" "$run/was-interrupted"
-  kill -INT "$pid" 2>/dev/null
-  return 0
-}
-
-# hub send <ticket> "<text>"
-cmd_send() {
-  local t="${1:-}" text="${2:-}" run pid st alive=0 i ns f n pf pre first rn
-  [ -n "$t" ] && [ $# -ge 2 ] && [ -n "$text" ] || hub_die "usage: hub send <ticket> \"<text>\""
-  python3 "$HUB_LIB/tickets.py" get "$t" status >/dev/null || hub_die "unknown ticket: $t"
-  run="$HUB_DIR/.runs/$t"
-  mkdir -p "$run/pending"
-  ns=$(python3 -c 'import time; print(time.time_ns())')
-  hub_lock "$run/lock"
-  printf '%s\n' "$text" > "$run/pending/$ns.md"
-  pid=$(cat "$run/pid" 2>/dev/null)
-  st=$(cat "$run/status" 2>/dev/null)
-  if hub_pid_alive "$pid"; then
-    if [ -f "$run/interrupted" ]; then
-      alive=1
-    else
-      # Only a round past its pending/ drain is interrupted; an earlier one picks the text up itself.
-      case "$st" in running|retrying*) alive=1; hub_interrupt "$t" ;; esac
-    fi
-  fi
-  hub_unlock "$run/lock"
-  hub_log "$t" "sent: $(printf '%s' "$text" | tr '\n' ' ' | cut -c1-80)"
-
-  if [ "$alive" -eq 1 ]; then
-    i=0
-    while [ "$i" -lt 150 ]; do
-      [ "$(cat "$run/status" 2>/dev/null)" = interrupted ] && break
-      [ -f "$run/interrupted" ] || break
-      sleep 0.2; i=$((i + 1))
-    done
-    if hub_pid_alive "$pid" && [ "$(cat "$run/status" 2>/dev/null)" != interrupted ]; then
-      kill -TERM "$pid" 2>/dev/null
-      i=0
-      while [ "$i" -lt 25 ] && hub_pid_alive "$pid"; do sleep 0.2; i=$((i + 1)); done
-    fi
-  fi
-
-  hub_lock "$run/lock"
-  pid=$(cat "$run/pid" 2>/dev/null)
-  if hub_pid_alive "$pid" || [ "$(cat "$run/status" 2>/dev/null)" = starting ]; then
-    hub_unlock "$run/lock"
-    echo "queued $t"
-    return 0
-  fi
-  if [ -z "$(ls -A "$run/pending" 2>/dev/null)" ]; then
-    hub_unlock "$run/lock"
-    echo "queued $t"
-    return 0
-  fi
-  echo starting > "$run/status"
-  rn=$(cat "$run/round" 2>/dev/null); rn=$(( ${rn:-0} + 1 ))
-  pf="$run/prompt-$rn.md"
-  if [ -f "$run/was-interrupted" ]; then
-    pre="Interrupted by the human. Before anything else read progress.log and run git status to see what is already done, and state it in one line. New instruction:"
-    rm -f -- "$run/was-interrupted"
-  else
-    pre="Follow-up from the human:"
-  fi
-  printf '%s\n' "$pre" > "$pf"
-  first=1
-  for f in "$run/pending"/*.md; do
-    [ "$first" -eq 1 ] || printf '\n' >> "$pf"
-    first=0
-    cat "$f" >> "$pf"
-    printf -- '- %s %s\n' "$(hub_now)" "$(cat "$f")" >> "$run/briefs.log"
-    rm -f -- "$f"
-  done
-  hub_unlock "$run/lock"
-  ( hub_round "$t" "$pf" ) >/dev/null 2>&1 &
-  n=$!
-  disown "$n" 2>/dev/null
-  echo "sent $t round $rn pid $n"
-}
-
-# hub stop <ticket>
-cmd_stop() {
-  local t="${1:-}" run pid i
-  [ -n "$t" ] || hub_die "usage: hub stop <ticket>"
-  python3 "$HUB_LIB/tickets.py" get "$t" status >/dev/null || hub_die "unknown ticket: $t"
-  run="$HUB_DIR/.runs/$t"
-  mkdir -p "$run"
-  pid=$(cat "$run/pid" 2>/dev/null)
-  if hub_pid_alive "$pid"; then
-    kill -INT "$pid" 2>/dev/null
-    i=0
-    while [ "$i" -lt 150 ] && hub_pid_alive "$pid"; do sleep 0.2; i=$((i + 1)); done
-    if hub_pid_alive "$pid"; then
-      kill -TERM "$pid" 2>/dev/null
-      i=0
-      while [ "$i" -lt 25 ] && hub_pid_alive "$pid"; do sleep 0.2; i=$((i + 1)); done
-    fi
-    i=0
-    while [ "$i" -lt 50 ] && [ -e "$run/pid" ]; do sleep 0.2; i=$((i + 1)); done
-    hub__tset "$t" status stopped
-    echo stopped > "$run/status"
-    echo "$(hub_now) stopped $t" >> "$HUB_DIR/.runs/events.log"
-    hub_log "$t" "stopped"
-    echo "stopped $t"
-  else
-    hub__tset "$t" status stopped
-    echo stopped > "$run/status"
-    echo "$(hub_now) stopped $t" >> "$HUB_DIR/.runs/events.log"
-    hub_log "$t" "stopped"
-    echo "stopped $t (was not running)"
-  fi
-}

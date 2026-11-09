@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Ticket files, INDEX.md regeneration and the project registry. Stdlib only."""
 import argparse
+import contextlib
+import fcntl
 import glob
 import json
 import os
@@ -37,6 +39,20 @@ def atomic_write(path, text):
         if os.path.exists(tmp):
             os.unlink(tmp)
         raise
+
+
+@contextlib.contextmanager
+def flock(name):
+    """Exclusive advisory lock on a sidecar file (the ticket file itself is replaced
+    atomically, so its inode cannot carry a lock)."""
+    d = os.path.join(hub_dir(), ".locks")
+    os.makedirs(d, exist_ok=True)
+    fd = os.open(os.path.join(d, name), os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
 
 
 def ticket_path(ticket_id):
@@ -148,6 +164,11 @@ def save(ticket_id, fm):
 
 
 def regen_index():
+    with flock("INDEX.lock"):
+        _regen_index()
+
+
+def _regen_index():
     lines = ["# Hub index", ""]
     for tid in all_ids():
         fm = load(tid)
@@ -263,19 +284,22 @@ def cmd_note(argv):
     if len(argv) != 2:
         die("usage: note <ticket> <text>")
     path = ticket_path(argv[0])
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    text = text.rstrip("\n") + "\n- %s %s\n" % (now(), argv[1].replace("\n", " "))
-    atomic_write(path, text)
+    with flock(argv[0] + ".lock"):
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        text = text.rstrip("\n") + "\n- %s %s\n" % (now(), argv[1].replace("\n", " "))
+        atomic_write(path, text)
 
 
 def cmd_set(argv):
     if len(argv) != 3:
         die("usage: set <ticket> <key> <value>")
     tid, key, val = argv
-    fm = load(tid)
-    fm[key] = parse_list(val) if key in LIST_KEYS else val
-    save(tid, fm)
+    ticket_path(tid)
+    with flock(tid + ".lock"):
+        fm = load(tid)
+        fm[key] = parse_list(val) if key in LIST_KEYS else val
+        save(tid, fm)
     regen_index()
 
 

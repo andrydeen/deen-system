@@ -46,4 +46,17 @@ mkdir -p "$TMP_ROOT/ex"; cp "$PLUGIN_ROOT/templates/projects.yaml.example" "$TMP
 HUB_DIR="$TMP_ROOT/ex" python3 "$PLUGIN_ROOT/scripts/lib/tickets.py" projects | grep -q '"example"' || fail "example parses"
 printf 'cm: # c\n  path: /x y # trailing\n  note: "a # b"\n' > "$HUB_DIR/projects.yaml"
 assert_eq '{"cm": {"path": "/x y", "note": "a # b"}}' "$(hub ticket projects)" "comments"
+test_concurrent_note_set() {
+  local i
+  for i in $(seq 1 20); do
+    hub note T-001 "n$i" >/dev/null &
+    hub set T-001 status running >/dev/null &
+  done
+  wait
+  for i in $(seq 1 20); do
+    grep -q " n$i\$" "$HUB_DIR"/tickets/T-001-*.md || fail "note n$i lost"
+  done
+  assert_eq running "$(hub ticket get T-001 status)" "status after concurrent set"
+}
+test_concurrent_note_set
 echo "PASS $0"
