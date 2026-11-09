@@ -1,0 +1,6 @@
+{"type":"system","subtype":"init","session_id":"s3"}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Write","input":{"file_path":"/p/x.txt","content":"x"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"The user doesn't want to proceed with this tool use. The tool use was rejected."}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"rm x"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t2","is_error":true,"content":[{"type":"text","text":"The user doesn't want to proceed with this tool use. The tool use was rejected."}]}]}}
+{"type":"result","subtype":"error_during_execution","result":null,"errors":["interrupted"],"total_cost_usd":0.1}

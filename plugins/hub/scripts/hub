@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# hub — Router + background workers CLI dispatcher.
+HUB_PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+HUB_LIB="$HUB_PLUGIN_ROOT/scripts/lib"
+export HUB_PLUGIN_ROOT HUB_LIB
+export PYTHONDONTWRITEBYTECODE=1
+
+. "$HUB_LIB/common.sh"
+for _f in "$HUB_LIB"/*.sh; do
+  [ -e "$_f" ] || continue
+  [ "$_f" = "$HUB_LIB/common.sh" ] && continue
+  . "$_f"
+done
+
+hub_help() {
+  cat <<'HELP'
+hub — Router + background workers
+
+Usage: hub <subcommand> [args]
+
+Subcommands:
+  init       create the hub directory layout and config
+  new        create a ticket
+  note       append a note to a ticket
+  set        set a ticket field
+  ticket     ticket subcommands: get, brief, list, projects, eval-set
+  dispatch   start a background worker for a ticket
+  send       send a steering message to a running worker
+  stop       interrupt a running worker
+  board      console board of all tickets
+  show       show one ticket with its recent activity
+  events     print the last events and follow the log
+  watch      watchdog pass: flag stalled, looping, dead or over-budget workers
+  eval       evaluate a finished worker's result
+  propose    propose a merge for a ticket
+  merge      merge an approved ticket
+  approval   show or change an approval record's status
+
+Run 'hub --help' to see this list.
+HELP
+}
+
+sub="${1:-}"
+case "$sub" in
+  ''|--help|-h|help) hub_help; exit 0 ;;
+esac
+shift
+case "$sub" in
+  *[!a-z0-9_]*) hub_help >&2; exit 1 ;;
+esac
+if [ "$sub" != init ] && [ ! -f "$HUB_DIR/config" ]; then
+  echo "hub: $HUB_DIR is not initialised; run hub init" >&2
+  exit 1
+fi
+if type "cmd_$sub" >/dev/null 2>&1; then
+  "cmd_$sub" "$@"
+else
+  echo "hub: unknown or unimplemented subcommand: $sub" >&2
+  hub_help >&2
+  exit 1
+fi
