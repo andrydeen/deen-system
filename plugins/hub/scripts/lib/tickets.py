@@ -307,16 +307,26 @@ def cmd_eval_set(argv):
     if len(argv) != 2:
         die("usage: eval-set <ticket> <command>")
     tid, cmd = argv
+    if "```" in cmd:
+        die("eval command must not contain a ``` fence")
     path = ticket_path(tid)
     with flock(tid + ".lock"):
         with open(path, encoding="utf-8") as f:
             text = f.read()
-        j = text.rfind("\n## Eval")
-        if j < 0:
+        ms = list(re.finditer(r"^## Eval[ \t]*$", text, re.M))
+        if not ms:
             die("ticket has no ## Eval section: %s" % tid)
-        k = text.find("\n## Log", j + 1)
-        tail = text[k:] if k >= 0 else ""
-        atomic_write(path, text[:j] + "\n## Eval\n\n```check\n%s\n```\n" % cmd + tail)
+        m = ms[-1]
+        rest = text[m.end():]
+        n = re.search(r"\n## ", rest)
+        old, after = (rest[:n.start()], rest[n.start() + 1:]) if n else (rest, "")
+        old = re.sub(r"```check[^\n]*\n.*?\n```\n?", "", old, count=1, flags=re.S).strip("\n")
+        block = "\n\n```check\n%s\n```\n" % cmd
+        if old:
+            block += "\n" + old + "\n"
+        if after:
+            block += "\n"
+        atomic_write(path, text[:m.end()] + block + after)
 
 
 def cmd_get(argv):

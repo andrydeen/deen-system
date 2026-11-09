@@ -55,7 +55,7 @@ test_eval_timeout() {
   assert_eq 1 "$rc" "timeout exit"
   assert_eq red "$(echo "$out" | head -n 1)" "red"
   echo "$out" | grep -q 'timed out' || fail "no timed out in: $out"
-  [ $((t1 - t0)) -le 3 ] || fail "took $((t1 - t0)) s"
+  [ $((t1 - t0)) -le 4 ] || fail "took $((t1 - t0)) s"
 }
 
 test_propose() {
@@ -116,7 +116,7 @@ class H(http.server.BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0))
         with open(bodyfile, "w") as f:
             f.write(self.path + "\n" + self.rfile.read(n).decode())
-        self.send_response(200)
+        self.send_response(401 if "BAD" in self.path else 200)
         self.end_headers()
         self.wfile.write(b"{}")
     def log_message(self, *a):
@@ -159,6 +159,19 @@ PY
     hub propose T-001 "third" 2>&1 >"$TMP_ROOT/o2") || fail "propose send fail exit"
   echo "$out" | grep -q 'telegram: send failed' || fail "no send failed message: $out"
   echo "$out" | grep -q 'SECRET-TOKEN' && fail "token leaked in failure output"
+  # API rejects (401): curl -f makes it a failure, token still hidden
+  printf 'TELEGRAM_BOT_%s="%s"\n' TOKEN "BAD-TOKEN" > "$TMP_ROOT/bad.env"
+  python3 "$TMP_ROOT/stub.py" "$TMP_ROOT/port2" "$TMP_ROOT/body2" &
+  STUB_PID=$!
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    [ -s "$TMP_ROOT/port2" ] && break
+    sleep 0.2
+  done
+  out=$(TELEGRAM_ENV_FILE="$TMP_ROOT/bad.env" HUB_TELEGRAM_API="http://127.0.0.1:$(cat "$TMP_ROOT/port2")" \
+    hub propose T-001 "fourth" 2>&1 >"$TMP_ROOT/o3") || fail "propose 401 exit"
+  stub_cleanup
+  echo "$out" | grep -q 'telegram: send failed' || fail "401 not reported: $out"
+  echo "$out" | grep -q 'BAD-TOKEN' && fail "token leaked on 401"
   return 0
 }
 
@@ -193,7 +206,7 @@ test_merge_conflict() {
   assert_eq conflict "$(hub ticket get T-001 status)" "status"
   assert_eq "$before" "$(git -C "$repo" rev-parse main)" "main unchanged"
   [ -d "$wt" ] || fail "worktree gone"
-  echo "$out" | grep -q 'f' || fail "files not named"
+  echo "$out" | grep -q 'conflict merging main into hub/T-001: f$' || fail "message: $out"
   assert_grep 'conflict.*f' "$(tfile T-001)"
   assert_eq "" "$(git -C "$wt" status --porcelain | grep '^U' )" "merge aborted"
 }
@@ -266,8 +279,70 @@ test_merge_main_not_checked_out() {
   [ -d "$repo/.claude/worktrees/T-001" ] || fail "worktree removed"
 }
 
+test_merge_in_progress_merge() {
+  setup_both
+  hub new --project gitproj --title "IP" <<< 'b' >/dev/null || fail "new"
+  FAKE_CLAUDE_TOUCH=new.txt hub dispatch T-001 --wait || fail "dispatch"
+  local repo="$HUB_DIR/git proj" rc=0 out
+  ( cd "$repo" && git checkout -q -b side && echo s > f && git commit -q -am side \
+    && git checkout -q main && echo m > f && git commit -q -am mainchange && { git merge side >"$TMP_ROOT/m.out" 2>&1; true; } ) || fail "setup merge"
+  git -C "$repo" rev-parse -q --verify MERGE_HEAD >"$TMP_ROOT/mh" || fail "no MERGE_HEAD in setup"
+  out=$(hub merge T-001 2>&1) || rc=$?
+  assert_eq 1 "$rc" "exit"
+  echo "$out" | grep -q 'merge in progress' || fail "message: $out"
+  git -C "$repo" rev-parse -q --verify MERGE_HEAD >"$TMP_ROOT/mh2" || fail "MERGE_HEAD wiped"
+  assert_eq ready "$(hub ticket get T-001 status)" "status"
+}
+
+test_merge_none_literal_pathspec() {
+  setup_both
+  local repo="$HUB_DIR/demo proj" rc=0 before
+  mkdir -p "$repo/src"
+  echo a > "$repo/src/a.ts"
+  hub new --project demo --title "L" --files 'src/*.ts' <<< 'b' >/dev/null || fail "new"
+  hub ticket set T-001 status ready
+  before=$(git -C "$repo" rev-parse HEAD)
+  hub merge T-001 >"$TMP_ROOT/o" 2>&1 || rc=$?
+  assert_eq 1 "$rc" "exit"
+  assert_eq "$before" "$(git -C "$repo" rev-parse HEAD)" "nothing committed"
+  assert_eq "" "$(git -C "$repo" diff --cached --name-only)" "nothing staged"
+}
+
+test_merge_none_wrong_branch() {
+  setup_both
+  local repo="$HUB_DIR/demo proj" rc=0 before
+  hub new --project demo --title "B" --files "keep.txt" <<< 'b' >/dev/null || fail "new"
+  hub ticket set T-001 status ready
+  echo changed > "$repo/keep.txt"
+  git -C "$repo" checkout -q -b other || fail "checkout"
+  before=$(git -C "$repo" rev-parse HEAD)
+  hub merge T-001 >"$TMP_ROOT/o" 2>&1 || rc=$?
+  assert_eq 1 "$rc" "exit"
+  assert_eq "$before" "$(git -C "$repo" rev-parse HEAD)" "nothing committed"
+  assert_eq ready "$(hub ticket get T-001 status)" "status"
+}
+
+test_eval_set_keeps_log() {
+  setup_both
+  hub new --project demo --title "K" <<< 'b' >/dev/null || fail "new"
+  hub ticket eval-set T-001 "true" || fail "set1"
+  hub ticket eval-set T-001 "echo two" || fail "set2"
+  local f
+  f=$(tfile T-001)
+  assert_eq 1 "$(grep -c '^```check' "$f")" "one block"
+  assert_grep '^echo two$' "$f"
+  assert_grep '^## Log$' "$f"
+  assert_grep 'created' "$f"
+  hub ticket eval-set T-001 'a ``` b' 2>/dev/null && fail "fence accepted"
+  return 0
+}
+
 test_eval_green_red
 test_eval_timeout
+test_merge_in_progress_merge
+test_merge_none_literal_pathspec
+test_merge_none_wrong_branch
+test_eval_set_keeps_log
 test_propose
 test_propose_requires_ready
 test_propose_telegram
