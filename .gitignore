@@ -5,3 +5,4 @@ node_modules/
 .worktrees/
 scripts/forbidden-list.local.txt
 .superpowers/
+__pycache__/

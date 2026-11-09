@@ -3,6 +3,7 @@
 HUB_PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HUB_LIB="$HUB_PLUGIN_ROOT/scripts/lib"
 export HUB_PLUGIN_ROOT HUB_LIB
+export PYTHONDONTWRITEBYTECODE=1
 
 . "$HUB_LIB/common.sh"
 for _f in "$HUB_LIB"/*.sh; do

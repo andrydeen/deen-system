@@ -35,4 +35,15 @@ test_new_concurrent_ids() {
 }
 test_new_concurrent_ids
 assert_eq 12 "$(hub ticket list | wc -l | tr -d ' ')" "list count"
+hub new --project demo --title "Fix: a #1 [draft]" <<< b >/dev/null || fail "odd title"
+n=$(hub ticket list | tail -1)
+assert_eq "Fix: a #1 [draft]" "$(hub ticket get "$n" title)" "title roundtrip"
+assert_grep "^- $n · demo · Fix: a #1 \[draft\] · open" "$HUB_DIR/INDEX.md"
+assert_eq "T-012" "$(hub ticket list | sed -n 12p)" "numeric order"
+hub ticket get T-999 status 2>/dev/null && fail "get unknown must exit 1"
+hub ticket get 'T-*' status 2>/dev/null && fail "glob id must not match"
+mkdir -p "$TMP_ROOT/ex"; cp "$PLUGIN_ROOT/templates/projects.yaml.example" "$TMP_ROOT/ex/projects.yaml"
+HUB_DIR="$TMP_ROOT/ex" python3 "$PLUGIN_ROOT/scripts/lib/tickets.py" projects | grep -q '"example"' || fail "example parses"
+printf 'cm: # c\n  path: /x y # trailing\n  note: "a # b"\n' > "$HUB_DIR/projects.yaml"
+assert_eq '{"cm": {"path": "/x y", "note": "a # b"}}' "$(hub ticket projects)" "comments"
 echo "PASS $0"

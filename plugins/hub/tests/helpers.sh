@@ -1,6 +1,7 @@
 # Sourced by every test. Provides setup_hub and assertions.
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$TESTS_DIR/.." && pwd)"
+export PYTHONDONTWRITEBYTECODE=1
 
 fail() { echo "FAIL ${0##*/}: $*" >&2; exit 1; }
 assert_eq() { [ "$1" = "$2" ] || fail "${3:-assert_eq}: expected [$1] got [$2]"; }

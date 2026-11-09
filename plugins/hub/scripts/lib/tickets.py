@@ -40,7 +40,7 @@ def atomic_write(path, text):
 
 
 def ticket_path(ticket_id):
-    hits = sorted(glob.glob(os.path.join(glob.escape(hub_dir()), "tickets", "%s-*.md" % ticket_id)))
+    hits = sorted(glob.glob(os.path.join(glob.escape(hub_dir()), "tickets", "%s-*.md" % glob.escape(ticket_id))))
     if not hits:
         die("unknown ticket: %s" % ticket_id)
     return hits[0]
@@ -52,7 +52,7 @@ def all_ids():
         m = re.match(r"(T-\d+)-", os.path.basename(p))
         if m:
             ids.append(m.group(1))
-    return sorted(ids)
+    return sorted(ids, key=lambda i: int(i[2:]))
 
 
 def next_id():
@@ -91,7 +91,7 @@ def parse_frontmatter(lines):
         m = re.match(r"^([A-Za-z_][\w-]*):\s?(.*)$", line)
         if m:
             key, val = m.group(1), m.group(2).strip()
-            if key in LIST_KEYS or (val.startswith("[") and val.endswith("]")):
+            if key in LIST_KEYS:
                 fm[key] = parse_list(val) if val else []
             else:
                 fm[key] = val
@@ -137,7 +137,7 @@ def save(ticket_id, fm):
     path = ticket_path(ticket_id)
     with open(path, encoding="utf-8") as f:
         text = f.read()
-    fm_lines, body = split_file(text)
+    _, body = split_file(text)
     out = ["---"]
     for k, v in fm.items():
         if k in SKIP_KEYS:
@@ -169,6 +169,20 @@ def unquote(v):
     return v
 
 
+def strip_comment(v):
+    """Drop an unquoted trailing ' #...' comment."""
+    q = None
+    for i, c in enumerate(v):
+        if q:
+            if c == q:
+                q = None
+        elif c in "\"'" and (i == 0 or v[i - 1].isspace()):
+            q = c
+        elif c == "#" and (i == 0 or v[i - 1].isspace()):
+            return v[:i].rstrip()
+    return v.rstrip()
+
+
 def projects():
     res = {}
     cur = None
@@ -181,7 +195,7 @@ def projects():
             if not line.strip() or line.lstrip().startswith("#"):
                 continue
             if not line[0].isspace():
-                m = re.match(r"^([^:\s][^:]*):\s*$", line)
+                m = re.match(r"^([^:\s][^:]*):\s*$", strip_comment(line))
                 if m:
                     cur = unquote(m.group(1))
                     res[cur] = {}
@@ -190,7 +204,7 @@ def projects():
             elif cur is not None:
                 m = re.match(r"^\s+([^:\s][^:]*):\s*(.*)$", line)
                 if m:
-                    res[cur][m.group(1).strip()] = unquote(m.group(2))
+                    res[cur][m.group(1).strip()] = unquote(strip_comment(m.group(2)))
     return res
 
 
