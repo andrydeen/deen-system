@@ -107,7 +107,7 @@ cmd_eval() {
 
 # hub propose <ticket> "<recommendation>" [--push] [--no-telegram]
 cmd_propose() {
-  local t="" rec="" push=0 tg=1 a n=1 f main title id short line body
+  local t="" rec="" push=0 tg=1 a n=1 f main title id short line body hubabs appabs
   local envf token chat api
   for a in "$@"; do
     case "$a" in
@@ -120,11 +120,13 @@ cmd_propose() {
   [ "$(hub__tk "$t" status)" = ready ] || { echo "hub: $t is not ready; nothing to propose" >&2; exit 1; }
   [ "${HUB_TELEGRAM:-1}" = 0 ] && tg=0
   mkdir -p "$APPROVALS_DIR" || hub_die "cannot create $APPROVALS_DIR"
+  appabs=$(cd "$APPROVALS_DIR" && pwd) || hub_die "cannot read $APPROVALS_DIR"
+  hubabs=$(cd "$HUB_DIR" && pwd) || hub_die "cannot read $HUB_DIR"
   main=$(hub__main_branch "$t")
   title=$(hub__tk "$t" title)
   while :; do
     id="$t-$n"
-    f="$APPROVALS_DIR/$id.md"
+    f="$appabs/$id.md"
     if [ ! -e "$f" ]; then
       body=$(
         echo "---"
@@ -141,7 +143,8 @@ cmd_propose() {
         echo
         echo "## Exact steps"
         echo '```bash'
-        echo "hub merge $t$([ "$push" = 1 ] && echo ' --push')"
+        # absolute and quoted: the record is run verbatim from any cwd, hub need not be on PATH
+        echo "\"$hubabs/bin/hub\" merge $t$([ "$push" = 1 ] && echo ' --push')"
         echo '```'
         echo
         echo "## Context"
@@ -157,6 +160,7 @@ cmd_propose() {
   short=$(printf '%s' "$rec" | awk '{for(i=1;i<=NF;i++){if(++c>100)exit; printf "%s%s",(c>1?" ":""),$i}}')
   line="🔐 Approval needed [$id] — $short. Reply: yes T-$((10#${t#T-})) · approve $id · reject $id"
   echo "$line"
+  echo "record: $f"
   hub_log "$t" "proposed $id"
   if [ "$tg" = 1 ]; then
     envf="${TELEGRAM_ENV_FILE:-$HOME/.claude/channels/telegram/.env}"
@@ -222,8 +226,8 @@ cmd_merge() {
       if hub__merging "$repo"; then hub_git "$repo" merge --abort; fi
       hub_die "merge: merging hub/$t into $main failed: $mout"
     fi
-    hub_log "$t" "worktree removed (uncommitted eval edits discarded)"
     hub_git "$repo" worktree remove --force "$wt" || hub_die "merge: worktree remove failed"
+    hub_log "$t" "worktree removed (uncommitted eval edits discarded)"
     hub_git "$repo" branch -q -d "hub/$t" || hub_die "merge: branch delete failed"
     hub__ts "$t" status done
     rm -f -- "$run/worktree"
@@ -233,18 +237,9 @@ cmd_merge() {
     while IFS= read -r p; do
       [ -n "$p" ] && paths=("${paths[@]}" "$p")
     done < <(hub__tk "$t" files | tr ',' '\n')
-    if [ "${#paths[@]}" -eq 0 ] && [ -f "$run/final.json" ]; then
-      while IFS= read -r p; do
-        [ -n "$p" ] && paths=("${paths[@]}" "$p")
-      done < <(python3 -c '
-import json, re, sys
-for x in json.load(open(sys.argv[1])).get("files") or []:
-    x = re.sub(r"\s+\((new|changed)\)$", "", str(x).strip())
-    if x and x != "none":
-        print(x)
-' "$run/final.json")
-    fi
-    [ "${#paths[@]}" -gt 0 ] || hub_die "no files to commit"
+    # Only the ticket's own list counts; the worker's self-reported Files: line never does.
+    [ "${#paths[@]}" -gt 0 ] || hub_die "ticket lists no files; set them with hub set $t files a,b"
+    for p in "${paths[@]}"; do echo "committing: $p"; done
     hub_git "$repo" --literal-pathspecs add -- "${paths[@]}" || hub_die "merge: git add failed"
     hub_git "$repo" --literal-pathspecs commit -q -m "hub($t): $title" -- "${paths[@]}" || hub_die "merge: git commit failed"
     hub__ts "$t" status done

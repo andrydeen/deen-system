@@ -12,6 +12,11 @@ hub init >/dev/null || fail "second init"
 assert_grep "WORKER_AGENT_MODE=custom" "$HUB_DIR/config"; assert_grep "mine: 1" "$HUB_DIR/projects.yaml"
 # bin/hub wrapper reaches the dispatcher
 "$HUB_DIR/bin/hub" --help | grep -q dispatch || fail "bin/hub wrapper"
+assert_grep 'ls -td' "$HUB_DIR/bin/hub"
+# M3: every subcommand but init refuses an uninitialised hub dir
+out=$(HUB_DIR="$TMP_ROOT/fresh dir" hub board 2>&1) && fail "board on fresh dir must exit 1"
+echo "$out" | grep -qF "hub: $TMP_ROOT/fresh dir is not initialised; run hub init" || fail "message: $out"
+HUB_DIR="$TMP_ROOT/fresh dir" hub --help >/dev/null || fail "help needs no init"
 # fake claude is wired
 claude -p "x" --session-id abc --output-format stream-json > "$HUB_DIR/f.jsonl"; assert_grep '"type": *"result"' "$HUB_DIR/f.jsonl"
 assert_file "$FAKE_CLAUDE_STATE/abc"

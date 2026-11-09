@@ -16,7 +16,7 @@ tfile() { ls "$HUB_DIR"/tickets/"$1"-*.md; }
 
 test_eval_green_red() {
   setup_both
-  hub new --project demo --title "E" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "E" <<< 'b' >/dev/null || fail "new"
   hub ticket eval-set T-001 "test -f out.txt" || fail "eval-set"
   FAKE_CLAUDE_TOUCH=out.txt hub dispatch T-001 --wait || fail "dispatch"
   local out rc=0
@@ -30,7 +30,7 @@ test_eval_green_red() {
   assert_eq red "$(echo "$out" | head -n 1)" "red"
   assert_eq red "$(hub ticket get T-001 eval)" "eval field red"
   assert_grep 'eval: red' "$(tfile T-001)"
-  hub new --project demo --title "NoBlock" <<< 'b' >/dev/null || fail "new2"
+  hub new --project demo --files out.txt --title "NoBlock" <<< 'b' >/dev/null || fail "new2"
   rc=0; out=$(hub eval T-002) || rc=$?
   assert_eq 0 "$rc" "n/a exit"
   assert_eq "n/a" "$out" "n/a"
@@ -38,7 +38,7 @@ test_eval_green_red() {
   # spec dir takes precedence
   mkdir -p "$TMP_ROOT/spec dir"
   printf '# eval\n\n```check\ntest -f keep.txt\n```\n' > "$TMP_ROOT/spec dir/eval.md"
-  hub new --project demo --title "Spec" --spec "$TMP_ROOT/spec dir" <<< 'b' >/dev/null || fail "new3"
+  hub new --project demo --files out.txt --title "Spec" --spec "$TMP_ROOT/spec dir" <<< 'b' >/dev/null || fail "new3"
   rc=0; out=$(hub eval T-003) || rc=$?
   assert_eq 0 "$rc" "spec eval exit"
   assert_eq green "$(echo "$out" | head -n 1)" "spec eval green"
@@ -46,7 +46,7 @@ test_eval_green_red() {
 
 test_eval_timeout() {
   setup_both
-  hub new --project demo --title "T" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "T" <<< 'b' >/dev/null || fail "new"
   hub ticket eval-set T-001 "sleep 5" || fail "eval-set"
   local out rc=0 t0 t1
   t0=$(date +%s)
@@ -60,15 +60,20 @@ test_eval_timeout() {
 
 test_propose() {
   setup_both
-  hub new --project demo --title "P" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "P" <<< 'b' >/dev/null || fail "new"
   local rc=0
   hub propose T-001 "commit and merge" --no-telegram 2>/dev/null || rc=$?
   assert_eq 1 "$rc" "not ready refused"
   hub ticket set T-001 status ready
   local out
   out=$(hub propose T-001 "commit and merge" --no-telegram) || fail "propose"
-  assert_eq 1 "$(echo "$out" | wc -l | tr -d ' ')" "one stdout line"
-  echo "$out" | grep -q '\[T-001-1\]' || fail "id missing: $out"
+  assert_eq 2 "$(echo "$out" | wc -l | tr -d ' ')" "two stdout lines"
+  echo "$out" | head -n 1 | grep -q '\[T-001-1\]' || fail "id missing: $out"
+  local rec
+  rec=$(echo "$out" | sed -n 2p)
+  case "$rec" in "record: /"*) ;; *) fail "record line: $rec" ;; esac
+  assert_file "${rec#record: }"
+  assert_eq "$(real "$APPROVALS_DIR/T-001-1.md")" "$(real "${rec#record: }")" "record path"
   echo "$out" | grep -q 'Reply: yes T-1 · approve T-001-1 · reject T-001-1' || fail "reply text: $out"
   local f="$APPROVALS_DIR/T-001-1.md"
   assert_file "$f"
@@ -76,18 +81,20 @@ test_propose() {
   assert_grep '^id: T-001-1$' "$f"
   assert_grep '^ticket: T-001$' "$f"
   assert_grep '^requested_by: hub-router$' "$f"
-  assert_grep '^hub merge T-001$' "$f"
+  assert_grep '/bin/hub" merge T-001$' "$f"
+  grep -qxF "\"$HUB_DIR/bin/hub\" merge T-001" "$f" || fail "absolute quoted hub path in Exact steps"
   assert_grep '^commit and merge$' "$f"
   assert_grep 'Merge ticket T-001 \(P\) into main\.' "$f"
   assert_grep 'proposed T-001-1' "$(tfile T-001)"
   out=$(hub propose T-001 "again" --push --no-telegram) || fail "propose 2"
   assert_file "$APPROVALS_DIR/T-001-2.md"
-  assert_grep '^hub merge T-001 --push$' "$APPROVALS_DIR/T-001-2.md"
+  assert_grep '/bin/hub" merge T-001 --push$' "$APPROVALS_DIR/T-001-2.md"
   assert_grep 'and push\.' "$APPROVALS_DIR/T-001-2.md"
   # long recommendation is truncated to 100 words
   local long w
   long=$(python3 -c 'print(" ".join("w%d" % i for i in range(300)))')
   out=$(hub propose T-001 "$long" --no-telegram) || fail "propose long"
+  out=$(echo "$out" | head -n 1)
   w=$(echo "$out" | wc -w | tr -d ' ')
   [ "$w" -le 120 ] || fail "too many words: $w"
   echo "$out" | grep -q 'w99' || fail "word 100 missing"
@@ -97,7 +104,7 @@ test_propose() {
 
 test_propose_requires_ready() {
   setup_both
-  hub new --project demo --title "R" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "R" <<< 'b' >/dev/null || fail "new"
   local rc=0
   hub propose T-001 "x" --no-telegram 2>/dev/null || rc=$?
   assert_eq 1 "$rc" "exit"
@@ -106,7 +113,7 @@ test_propose_requires_ready() {
 
 test_propose_telegram() {
   setup_both
-  hub new --project demo --title "Tg" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "Tg" <<< 'b' >/dev/null || fail "new"
   hub ticket set T-001 status ready
   cat > "$TMP_ROOT/stub.py" <<'PY'
 import http.server, sys
@@ -175,6 +182,42 @@ PY
   return 0
 }
 
+test_approval_transitions() {
+  setup_both
+  hub new --project demo --files out.txt --title "AP" <<< 'b' >/dev/null || fail "new"
+  hub ticket set T-001 status ready
+  hub propose T-001 "one" --no-telegram >/dev/null || fail "propose 1"
+  hub propose T-001 "two" --no-telegram >/dev/null || fail "propose 2"
+  local f1="$APPROVALS_DIR/T-001-1.md" f2="$APPROVALS_DIR/T-001-2.md" out rc
+  assert_eq pending "$(hub approval T-001-1)" "read status"
+  grep -q '^resolved:' "$f1" && fail "resolved before terminal state"
+  rc=0; out=$(hub approval T-001-1 approved-executed 2>&1) || rc=$?
+  assert_eq 1 "$rc" "pending -> executed refused"
+  echo "$out" | grep -q 'pending' || fail "message names current status: $out"
+  assert_eq "T-001-1: approved-executing" "$(hub approval T-001-1 approved-executing)" "claim"
+  assert_grep '^status: approved-executing$' "$f1"
+  rc=0; hub approval T-001-1 approved-executing >/dev/null 2>&1 || rc=$?
+  assert_eq 1 "$rc" "double claim refused"
+  grep -q '^resolved:' "$f1" && fail "resolved while executing"
+  assert_eq "T-001-1: approved-executed" "$(hub approval T-001-1 approved-executed)" "close"
+  assert_grep '^status: approved-executed$' "$f1"
+  assert_grep '^resolved: [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$' "$f1"
+  python3 -c 'import sys; l=open(sys.argv[1]).read().split("\n"); e=l.index("---",1); assert any(x.startswith("resolved:") for x in l[1:e]), l' "$f1" || fail "resolved in frontmatter"
+  assert_grep '^## Exact steps$' "$f1"
+  rc=0; out=$(hub approval T-001-1 rejected 2>&1) || rc=$?
+  assert_eq 1 "$rc" "executed -> rejected refused"
+  echo "$out" | grep -q 'approved-executed' || fail "message: $out"
+  assert_eq "T-001-2: rejected" "$(hub approval T-001-2 rejected)" "reject"
+  assert_grep '^resolved: ' "$f2"
+  rc=0; hub approval T-001-9 approved-executing >/dev/null 2>&1 || rc=$?
+  assert_eq 1 "$rc" "unknown id"
+  rc=0; hub approval 'T-001-1/../x' >/dev/null 2>&1 || rc=$?
+  assert_eq 1 "$rc" "bad id"
+  rc=0; hub approval T-001-1 approved >/dev/null 2>&1 || rc=$?
+  assert_eq 1 "$rc" "bad status"
+  [ -z "$(ls -A "$APPROVALS_DIR" | grep -v '^T-001-[12]\.md$')" ] || fail "stray files: $(ls -A "$APPROVALS_DIR")"
+}
+
 test_merge_worktree() {
   setup_both
   hub new --project gitproj --title "W" <<< 'b' >/dev/null || fail "new"
@@ -234,6 +277,7 @@ test_merge_none_path_with_spaces() {
   echo changed > "$repo/keep.txt"
   echo stray > "$repo/other.txt"
   hub merge T-001 >"$TMP_ROOT/merge.out" || fail "merge"
+  assert_grep '^committing: a b\.txt$' "$TMP_ROOT/merge.out"
   assert_eq "a b.txt" "$(git -C "$repo" show --name-only --format= HEAD)" "commit files"
   git -C "$repo" log --format=%s -n 1 | grep -q '^hub(T-001): N$' || fail "commit msg"
   local st
@@ -244,20 +288,34 @@ test_merge_none_path_with_spaces() {
   assert_grep 'committed' "$(tfile T-001)"
 }
 
-test_merge_none_fallback_final_json() {
+test_new_none_requires_files() {
   setup_both
-  local repo="$HUB_DIR/demo proj"
-  hub new --project demo --title "F" <<< 'b' >/dev/null || fail "new"
+  local out rc=0
+  out=$(hub new --project demo --title "NF" <<< 'b' 2>&1) || rc=$?
+  assert_eq 1 "$rc" "exit"
+  echo "$out" | grep -q -- '--files is required for isolation: none projects' || fail "message: $out"
+  [ -z "$(hub ticket list)" ] || fail "ticket created"
+  hub new --project gitproj --title "WT" <<< 'b' >/dev/null || fail "worktree project needs no --files"
+}
+
+test_merge_none_empty_files_refused() {
+  setup_both
+  local repo="$HUB_DIR/demo proj" rc=0 out before
+  hub new --project demo --files out.txt --title "F" <<< 'b' >/dev/null || fail "new"
   FAKE_CLAUDE_TOUCH="out.txt" FAKE_CLAUDE_RESULT=$'Done.\n\nStatus: ready\nEval: n/a\nFiles: '"$repo/out.txt"$' (new)\nNote: none' \
     hub dispatch T-001 --wait || fail "dispatch"
-  [ -z "$(hub ticket get T-001 files)" ] || fail "ticket files not empty"
-  hub merge T-001 >"$TMP_ROOT/merge.out" || fail "merge"
-  assert_eq "out.txt" "$(git -C "$repo" show --name-only --format= HEAD)" "commit files"
+  hub set T-001 files "" || fail "clear files"
+  before=$(git -C "$repo" rev-parse HEAD)
+  out=$(hub merge T-001 2>&1) || rc=$?
+  assert_eq 1 "$rc" "exit"
+  echo "$out" | grep -q 'ticket lists no files; set them with hub set T-001 files a,b' || fail "message: $out"
+  assert_eq "$before" "$(git -C "$repo" rev-parse HEAD)" "the worker's Files: line is never used"
+  assert_eq ready "$(hub ticket get T-001 status)" "status"
 }
 
 test_merge_requires_ready() {
   setup_both
-  hub new --project demo --title "O" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "O" <<< 'b' >/dev/null || fail "new"
   local rc=0
   hub merge T-001 2>/dev/null || rc=$?
   assert_eq 1 "$rc" "exit"
@@ -324,7 +382,7 @@ test_merge_none_wrong_branch() {
 
 test_eval_set_keeps_log() {
   setup_both
-  hub new --project demo --title "K" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "K" <<< 'b' >/dev/null || fail "new"
   hub ticket eval-set T-001 "true" || fail "set1"
   hub ticket eval-set T-001 "echo two" || fail "set2"
   local f
@@ -339,7 +397,7 @@ test_eval_set_keeps_log() {
 
 test_propose_unwritable_dir() {
   setup_both
-  hub new --project demo --title "U" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "U" <<< 'b' >/dev/null || fail "new"
   hub ticket set T-001 status ready
   trap 'chmod 755 "$APPROVALS_DIR"; stub_cleanup; cleanup' EXIT
   chmod 555 "$APPROVALS_DIR"
@@ -356,8 +414,10 @@ test_propose_unwritable_dir() {
 
 test_eval_kill_fallback() {
   setup_both
-  hub new --project demo --title "K9" <<< 'b' >/dev/null || fail "new"
-  hub ticket eval-set T-001 "trap '' TERM; sleep 10" || fail "eval-set"
+  hub new --project demo --files out.txt --title "K9" <<< 'b' >/dev/null || fail "new"
+  local marker="hub-eval-kill-marker-$$"
+  # the marker sits in the sleeper's own argv, so pgrep -f finds exactly this process
+  hub ticket eval-set T-001 "trap '' TERM; python3 -c 'import time; time.sleep(10)' $marker" || fail "eval-set"
   local out rc=0 t0 t1
   t0=$(date +%s)
   out=$(HUB_EVAL_TIMEOUT_S=1 hub eval T-001) || rc=$?
@@ -366,7 +426,7 @@ test_eval_kill_fallback() {
   assert_eq red "$(echo "$out" | head -n 1)" "red"
   echo "$out" | grep -q 'timed out' || fail "no timed out: $out"
   [ $((t1 - t0)) -le 5 ] || fail "took $((t1 - t0)) s"
-  pgrep -f 'sleep 10' | grep -q . && fail "sleep left behind"
+  pgrep -f "$marker" | grep -q . && fail "eval sleeper left behind"
   return 0
 }
 
@@ -380,12 +440,14 @@ test_merge_none_wrong_branch
 test_eval_set_keeps_log
 test_propose
 test_propose_requires_ready
+test_approval_transitions
 test_propose_telegram
 test_merge_worktree
 test_merge_conflict
 test_merge_reeval_red
 test_merge_none_path_with_spaces
-test_merge_none_fallback_final_json
+test_new_none_requires_files
+test_merge_none_empty_files_refused
 test_merge_requires_ready
 test_merge_main_not_checked_out
 echo "PASS $0"

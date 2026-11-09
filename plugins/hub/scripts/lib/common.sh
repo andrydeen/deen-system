@@ -14,6 +14,16 @@ hub_log() {
 
 hub_pid_alive() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
 
+# hub__write_atomic <file> <content> — temp file in the same directory + mv, so a
+# concurrent reader sees the old or the new content, never an empty file.
+hub__write_atomic() {
+  local tmp
+  tmp=$(mktemp "$1.XXXXXX") || return 1
+  if printf '%s\n' "$2" > "$tmp" && mv -f -- "$tmp" "$1"; then return 0; fi
+  rm -f -- "$tmp"
+  return 1
+}
+
 # hub_config_get <KEY> [default] — reads KEY=value lines from $HUB_DIR/config.
 hub_config_get() {
   local v=""
@@ -75,7 +85,8 @@ cmd_init() {
 #!/usr/bin/env bash
 root="${HUB_PLUGIN_ROOT:-}"
 if [ -z "$root" ]; then
-  newest=$(ls -d "$HOME"/.claude/plugins/cache/*/hub/*/scripts/hub 2>/dev/null | sort | tail -1)
+  # newest installed version by modification time (version strings do not sort lexically)
+  newest=$(ls -td "$HOME"/.claude/plugins/cache/*/hub/*/scripts/hub 2>/dev/null | head -1)
   root="${newest%/scripts/hub}"
 fi
 [ -n "$root" ] || { echo "hub: plugin not found (set HUB_PLUGIN_ROOT)" >&2; exit 1; }

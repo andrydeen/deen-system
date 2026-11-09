@@ -31,15 +31,17 @@ fm_check "$A/hub-worker.md" name=hub-worker \
 for p in "hub propose" "hub send" "never do the work" "hub board" "hub eval" "approved-executing" "Exact steps" "CronCreate" "Monitor"; do
   grep -qF -- "$p" "$A/hub-router.md" || fail "router missing: $p"
 done
+grep -qF './bin/hub approval' "$A/hub-router.md" || fail "router RESOLVE uses hub approval"
+grep -q 'sed' "$A/hub-router.md" && fail "router must not tell the Router to sed records"
+grep -qF 'approval' "$T/hub-CLAUDE.md" || fail "hub-CLAUDE approval line"
 n=$(wc -l < "$A/hub-router.md" | tr -d ' '); [ "$n" -le 125 ] || fail "router too long: $n"
 n=$(wc -l < "$A/hub-worker.md" | tr -d ' '); [ "$n" -le 20 ] || fail "worker too long: $n"
 for f in "$A/hub-router.md" "$A/hub-worker.md"; do
-  assert_eq 0 "$(grep -c -e 'Din' -e 'cust06' "$f")" "operator strings in $f"
   grep -Eq '^description: ".*"$' "$f" || fail "description not quoted in $f"
 done
-for f in "$T"/*.md "$PLUGIN_ROOT/README.md"; do
-  assert_eq 0 "$(grep -c -e 'Din' -e 'cust06' "$f")" "operator strings in $f"
-done
+# operator identifiers are the release guard's job (below); here: no private home paths
+hits=$(grep -rnE '/Users/[a-z]+/' "$PLUGIN_ROOT" 2>/dev/null)
+[ -z "$hits" ] || fail "private home path under plugins/hub: $hits"
 
 for p in '{{TICKET}}' 'Status:' 'Eval:' 'Files:' 'Note:'; do grep -qF -- "$p" "$T/worker-rules.md" || fail "worker-rules missing $p"; done
 grep -qF '{{TICKET}}' "$T/brief.md" || fail "brief {{TICKET}}"

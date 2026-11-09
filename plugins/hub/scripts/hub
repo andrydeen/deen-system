@@ -47,6 +47,10 @@ shift
 case "$sub" in
   *[!a-z0-9_]*) hub_help >&2; exit 1 ;;
 esac
+if [ "$sub" != init ] && [ ! -f "$HUB_DIR/config" ]; then
+  echo "hub: $HUB_DIR is not initialised; run hub init" >&2
+  exit 1
+fi
 if type "cmd_$sub" >/dev/null 2>&1; then
   "cmd_$sub" "$@"
 else

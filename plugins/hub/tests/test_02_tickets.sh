@@ -1,6 +1,6 @@
 . "$(dirname "$0")/helpers.sh"; setup_hub
 printf 'demo:\n  path: "%s/demo proj"\n  isolation: none\n' "$HUB_DIR" > "$HUB_DIR/projects.yaml"
-id=$(hub new --project demo --title "Hello" <<< 'say "hi" $USER') || fail "new"
+id=$(hub new --project demo --files out.txt --title "Hello" <<< 'say "hi" $USER') || fail "new"
 assert_eq "T-001" "$id" "first id"
 f=$(ls "$HUB_DIR"/tickets/T-001-*.md); assert_file "$f"
 assert_eq "$HUB_DIR/tickets/T-001-hello.md" "$f" "slug filename"
@@ -28,14 +28,14 @@ hub set T-099 status x 2>/dev/null && fail "unknown ticket must exit 1"
 hub note T-099 x 2>/dev/null && fail "note unknown ticket must exit 1"
 test_new_concurrent_ids() {
   local i
-  for i in 1 2 3 4 5 6 7 8 9 10; do hub new --project demo --title "c$i" <<< "b$i" >/dev/null & done
+  for i in 1 2 3 4 5 6 7 8 9 10; do hub new --project demo --files out.txt --title "c$i" <<< "b$i" >/dev/null & done
   wait
   [ -z "$(hub ticket list | sort | uniq -d)" ] || fail "duplicate ids"
   assert_eq 12 "$(hub ticket list | wc -l | tr -d ' ')" "12 ids"
 }
 test_new_concurrent_ids
 assert_eq 12 "$(hub ticket list | wc -l | tr -d ' ')" "list count"
-hub new --project demo --title "Fix: a #1 [draft]" <<< b >/dev/null || fail "odd title"
+hub new --project demo --files out.txt --title "Fix: a #1 [draft]" <<< b >/dev/null || fail "odd title"
 n=$(hub ticket list | tail -1)
 assert_eq "Fix: a #1 [draft]" "$(hub ticket get "$n" title)" "title roundtrip"
 assert_grep "^- $n · demo · Fix: a #1 \[draft\] · open" "$HUB_DIR/INDEX.md"

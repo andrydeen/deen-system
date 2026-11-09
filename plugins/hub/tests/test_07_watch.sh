@@ -17,7 +17,7 @@ mk_run() {
 }
 live() { echo "$$" > "$HUB_DIR/.runs/$1/pid"; echo "$$" > "$HUB_DIR/.runs/$1/claude-pid"; }
 
-new_ticket() { hub new --project demo --title "Watched" <<< 'brief' >/dev/null || fail "new"; }
+new_ticket() { hub new --project demo --files out.txt --title "Watched" <<< 'brief' >/dev/null || fail "new"; }
 last_log() { tail -n 1 "$HUB_DIR/.runs/events.log"; }
 
 test_watch_stall() {
@@ -66,7 +66,9 @@ test_watch_dead() {
 test_watch_budget() {
   setup_projects; new_ticket
   mk_run T-001 running; live T-001
-  echo '{"type":"result","subtype":"success","result":"x","total_cost_usd":9.0}' > "$HUB_DIR/.runs/T-001/events.jsonl"
+  # two rounds of 4.5 each: under the cap per round, over it in total
+  printf '%s\n' '{"type":"result","subtype":"success","result":"x","total_cost_usd":4.5}' \
+    '{"type":"result","subtype":"success","result":"y","total_cost_usd":4.5}' > "$HUB_DIR/.runs/T-001/events.jsonl"
   local out; out="$(hub watch)" || fail "watch"
   echo "$out" | grep -q '⚠ budget T-001 \$9.00 ≥ \$8' || fail "budget line: $out"
   assert_eq budget "$(hub ticket get T-001 flag)" "flag"
@@ -83,6 +85,23 @@ test_watch_healthy_clears() {
   assert_eq "" "$(hub ticket get T-001 flag)" "flag cleared"
   grep 'T-001' "$HUB_DIR/INDEX.md" | grep -q '⚠' && fail "INDEX still flagged"
   return 0
+}
+
+test_watch_dead_kills_claude() {
+  setup_projects; new_ticket
+  mk_run T-001 running
+  hub set T-001 status running >/dev/null
+  echo 999999 > "$HUB_DIR/.runs/T-001/pid"
+  # an orphaned worker (SIGINT ignored, as for any async child) whose round shell died
+  ( sleep 47 & echo $! > "$HUB_DIR/.runs/T-001/claude-pid" )
+  local cp; cp=$(cat "$HUB_DIR/.runs/T-001/claude-pid")
+  kill -0 "$cp" 2>/dev/null || fail "dummy not running"
+  hub watch >/dev/null || fail "watch"
+  local i=0
+  while kill -0 "$cp" 2>/dev/null && [ "$i" -lt 25 ]; do sleep 0.2; i=$((i + 1)); done
+  kill -0 "$cp" 2>/dev/null && { kill -KILL "$cp" 2>/dev/null; fail "claude-pid process still alive"; }
+  [ ! -e "$HUB_DIR/.runs/T-001/claude-pid" ] || fail "claude-pid file left"
+  assert_eq failed "$(hub ticket get T-001 status)" "ticket status"
 }
 
 test_watch_skips_finished() {
@@ -117,7 +136,7 @@ test_watch_starting_grace() {
   assert_eq "" "$(hub ticket get T-001 flag)" "flag"
 }
 
-for t in test_watch_stall test_watch_loop test_watch_dead test_watch_budget test_watch_healthy_clears test_watch_skips_finished test_watch_dead_recheck test_watch_starting_grace; do
+for t in test_watch_stall test_watch_loop test_watch_dead test_watch_dead_kills_claude test_watch_budget test_watch_healthy_clears test_watch_skips_finished test_watch_dead_recheck test_watch_starting_grace; do
   ( "$t" ) || exit 1
 done
 echo "PASS ${0##*/}"

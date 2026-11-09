@@ -4,7 +4,7 @@ last_line() { tail -n 1 "$HUB_DIR/.runs/events.log"; }
 
 test_dispatch_none() {
   setup_projects
-  hub new --project demo --title "A" <<< 'brief' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "A" <<< 'brief' >/dev/null || fail "new"
   hub dispatch T-001 --wait || fail "dispatch exit"
   local r="$HUB_DIR/.runs/T-001"
   assert_file "$r/session-id"; assert_file "$r/events.jsonl"; assert_file "$r/report.md"
@@ -16,7 +16,14 @@ assert a[a.index("--permission-mode")+1]=="auto"
 assert a[a.index("--allowedTools")+1]=="Write,Edit,Read,Glob,Grep"
 assert a[a.index("--max-turns")+1]=="150"
 assert a[a.index("--max-budget-usd")+1]=="8"
-assert "--session-id" in a' || fail "argv"
+assert "--session-id" in a
+assert a[a.index("--disallowedTools")+1]=="Bash(git push:*),Bash(git merge:*)"' || fail "argv"
+  # I1: worker rules carry the absolute run dir (progress.log lives there, not in the project)
+  RUN_ABS="$(cd "$r" && pwd)" log_py 'import os
+a=E[0]["argv"]; rules=a[a.index("--append-system-prompt")+1]
+assert os.environ["RUN_ABS"] + "/progress.log" in rules, rules
+assert "{{RUN_DIR}}" not in rules and "{{TICKET}}" not in rules, rules
+assert a[a.index("--add-dir")+1]==os.environ["RUN_ABS"]' || fail "rules run dir"
   assert_eq "$(real "$HUB_DIR/demo proj")" "$(log_py 'print(E[0]["cwd"])')" "cwd"
   [ ! -e "$HUB_DIR/demo proj/.claude/worktrees" ] || fail "no worktrees for none"
   [ ! -e "$r/pid" ] || fail "pid removed"
@@ -38,21 +45,21 @@ test_dispatch_prompt_verbatim() {
   setup_projects
   local b="it's \"quoted\" \$HOME \`tick\`
 second line"
-  hub new --project demo --title "P" <<< "$b" >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "P" <<< "$b" >/dev/null || fail "new"
   hub dispatch T-001 --wait || fail "dispatch"
   assert_eq "$b" "$(log_py 'print(E[0]["argv"][E[0]["argv"].index("-p")+1], end="")')" "prompt"
 }
 
 test_dispatch_unknown_report() {
   setup_projects
-  hub new --project demo --title "U" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "U" <<< 'b' >/dev/null || fail "new"
   FAKE_CLAUDE_RESULT="done, all good" hub dispatch T-001 --wait || fail "dispatch"
   assert_eq unknown-report "$(hub ticket get T-001 status)" "status"
 }
 
 test_dispatch_denied() {
   setup_projects
-  hub new --project demo --title "D" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "D" <<< 'b' >/dev/null || fail "new"
   FAKE_CLAUDE_EVENTS="$TESTS_DIR/fixtures/events-interrupted.jsonl" hub dispatch T-001 --wait || fail "dispatch"
   assert_eq blocked "$(hub ticket get T-001 status)" "status"
   assert_grep "permission denied: Write" "$(ls "$HUB_DIR"/tickets/T-001-*.md)"
@@ -64,7 +71,7 @@ test_dispatch_reclaims_stale_slot() {
   setup_projects
   local n
   for n in 1 2 3 4; do mkdir -p "$HUB_DIR/.runs/.slots/$n"; echo 999999 > "$HUB_DIR/.runs/.slots/$n/pid"; done
-  hub new --project demo --title "S" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "S" <<< 'b' >/dev/null || fail "new"
   hub dispatch T-001 --wait || fail "dispatch"
   assert_eq ready "$(hub ticket get T-001 status)" "status"
   grep -q queued "$HUB_DIR/.runs/T-001/status" && fail "was queued"
@@ -74,8 +81,8 @@ test_dispatch_reclaims_stale_slot() {
 test_dispatch_queue() {
   setup_projects
   export HUB_MAX_WORKERS=1 FAKE_CLAUDE_SLEEP=3 HUB_QUEUE_POLL_S=0.5
-  hub new --project demo --title "Q1" <<< 'b' >/dev/null || fail "new1"
-  hub new --project demo --title "Q2" <<< 'b' >/dev/null || fail "new2"
+  hub new --project demo --files out.txt --title "Q1" <<< 'b' >/dev/null || fail "new1"
+  hub new --project demo --files out.txt --title "Q2" <<< 'b' >/dev/null || fail "new2"
   hub dispatch T-001 | grep -Eq '^dispatched T-001 round 1 pid [0-9]+$' || fail "dispatch output"
   local i
   for i in $(seq 1 50); do [ "$(cat "$HUB_DIR/.runs/T-001/status" 2>/dev/null)" = running ] && break; sleep 0.1; done
@@ -95,18 +102,71 @@ test_dispatch_queue() {
 
 test_dispatch_retry() {
   setup_projects
-  hub new --project demo --title "R" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "R" <<< 'b' >/dev/null || fail "new"
   FAKE_CLAUDE_FAIL_FIRST=1 HUB_RETRY_BASE_S=0 hub dispatch T-001 --wait || fail "dispatch"
   assert_eq ready "$(hub ticket get T-001 status)" "status"
   assert_eq 2 "$(log_py 'print(len(E))')" "two invocations"
   assert_eq 1 "$(log_py 'print(int("--resume" in E[1]["argv"] and "--session-id" in E[0]["argv"]))')" "resume on retry"
 }
 
+test_dispatch_retry_api_error() {
+  setup_projects
+  hub new --project demo --files out.txt --title "AE" <<< 'b' >/dev/null || fail "new"
+  FAKE_CLAUDE_API_ERROR_FIRST=529 HUB_RETRY_BASE_S=0 hub dispatch T-001 --wait || fail "dispatch"
+  assert_eq 2 "$(log_py 'print(len(E))')" "two invocations"
+  assert_eq 1 "$(log_py 'print(int("--resume" in E[1]["argv"] and "--session-id" in E[0]["argv"]))')" "resume on retry"
+  assert_eq ready "$(hub ticket get T-001 status)" "status"
+  [ ! -s "$HUB_DIR/.runs/T-001/stderr.log" ] || fail "fake wrote stderr"
+}
+
+test_dispatch_api_error_note() {
+  setup_projects
+  hub new --project demo --files out.txt --title "AN" <<< 'b' >/dev/null || fail "new"
+  FAKE_CLAUDE_API_ERROR=401 HUB_RETRY_BASE_S=0 hub dispatch T-001 --wait
+  assert_eq 1 "$(log_py 'print(len(E))')" "401 is not transient"
+  assert_eq unknown-report "$(hub ticket get T-001 status)" "status"
+  python3 -c 'import json,sys; n=json.load(open(sys.argv[1]))["note"]; assert n.startswith("API Error: 401"), n' \
+    "$HUB_DIR/.runs/T-001/final.json" || fail "final note"
+  last_line | grep -q 'unknown-report T-001 API Error: 401' || fail "events.log: $(last_line)"
+}
+
+test_dispatch_no_retry_on_embedded_number() {
+  setup_projects
+  hub new --project demo --files out.txt --title "EN" <<< 'b' >/dev/null || fail "new"
+  FAKE_CLAUDE_STDERR="request id 75123 took 1500ms" FAKE_CLAUDE_EXIT=1 HUB_RETRY_BASE_S=0 hub dispatch T-001 --wait
+  assert_eq 1 "$(log_py 'print(len(E))')" "a 5xx inside a longer number is not transient"
+}
+
+test_dispatch_path_missing() {
+  setup_projects
+  hub new --project demo --files out.txt --title "PM" <<< 'b' >/dev/null || fail "new"
+  mv "$HUB_DIR/demo proj" "$HUB_DIR/gone proj"
+  hub dispatch T-001 --wait && fail "dispatch must fail"
+  assert_eq failed "$(hub ticket get T-001 status)" "status"
+  assert_eq failed "$(cat "$HUB_DIR/.runs/T-001/status")" "run status"
+  grep -qF "project path missing: $HUB_DIR/demo proj" "$HUB_DIR"/tickets/T-001-*.md || fail "ticket note lacks path"
+  last_line | grep -qF "failed T-001 project path missing: $HUB_DIR/demo proj" || fail "events.log: $(last_line)"
+  [ ! -s "$FAKE_CLAUDE_LOG" ] || fail "worker must not start"
+  [ ! -e "$HUB_DIR/.runs/T-001/pid" ] || fail "pid left"
+}
+
+test_dispatch_ticket_limits() {
+  setup_projects
+  hub new --project demo --files out.txt --title "LIM" --max-turns 7 --max-budget-usd 1.5 <<< 'b' >/dev/null || fail "new"
+  hub dispatch T-001 --wait || fail "dispatch"
+  log_py 'a=E[0]["argv"]; assert a[a.index("--max-turns")+1]=="7", a; assert a[a.index("--max-budget-usd")+1]=="1.5", a' || fail "ticket limits"
+  hub set T-001 max_turns 9 || fail "set"
+  hub dispatch T-001 --again --wait || fail "dispatch 2"
+  log_py 'a=E[1]["argv"]; assert a[a.index("--max-turns")+1]=="9", a' || fail "hub set override"
+  hub new --project demo --files out.txt --title "BAD" --max-turns x <<< 'b' >/dev/null 2>&1 && fail "bad --max-turns accepted"
+  return 0
+}
+
 test_dispatch_pid_alive_while_queued() {
   setup_projects
   export HUB_MAX_WORKERS=1 FAKE_CLAUDE_SLEEP=3 HUB_QUEUE_POLL_S=0.5
-  hub new --project demo --title "A1" <<< 'b' >/dev/null || fail "new1"
-  hub new --project demo --title "A2" <<< 'b' >/dev/null || fail "new2"
+  hub new --project demo --files out.txt --title "A1" <<< 'b' >/dev/null || fail "new1"
+  hub new --project demo --files out.txt --title "A2" <<< 'b' >/dev/null || fail "new2"
   hub dispatch T-001 >/dev/null || fail "dispatch 1"
   local i
   for i in $(seq 1 50); do [ "$(cat "$HUB_DIR/.runs/T-001/status" 2>/dev/null)" = running ] && break; sleep 0.1; done
@@ -129,7 +189,7 @@ test_dispatch_pid_alive_while_queued() {
 test_dispatch_no_retry_on_max_turns() {
   setup_projects
   printf '%s\n' '{"type":"result","subtype":"error_max_turns","result":null,"duration_ms":523,"total_cost_usd":0.5}' > "$TMP_ROOT/mt.jsonl"
-  hub new --project demo --title "M" <<< 'b' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "M" <<< 'b' >/dev/null || fail "new"
   FAKE_CLAUDE_STDERR="429 rate limit" FAKE_CLAUDE_EVENTS="$TMP_ROOT/mt.jsonl" FAKE_CLAUDE_EXIT=1 HUB_RETRY_BASE_S=0 hub dispatch T-001 --wait
   assert_eq 1 "$(log_py 'print(len(E))')" "no retry"
   assert_eq unknown-report "$(hub ticket get T-001 status)" "status"
@@ -159,4 +219,9 @@ test_dispatch_denied
 test_dispatch_reclaims_stale_slot
 test_dispatch_queue
 test_dispatch_retry
+test_dispatch_retry_api_error
+test_dispatch_api_error_note
+test_dispatch_no_retry_on_embedded_number
+test_dispatch_path_missing
+test_dispatch_ticket_limits
 echo "PASS $0"

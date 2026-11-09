@@ -21,14 +21,14 @@ no_fake() { ! pgrep -f "$TESTS_DIR/claude"; }
 t2_queued() { [ "$(cat "$HUB_DIR/.runs/T-002/status" 2>/dev/null)" = queued ]; }
 first_seen() { grep -qs first "$(R)/briefs.log" "$(R)"/pending/*.md; }
 start_slow() {
-  hub new --project demo --title "S" <<< 'brief' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "S" <<< 'brief' >/dev/null || fail "new"
   FAKE_CLAUDE_SLEEP=20 hub dispatch T-001 >/dev/null || fail "dispatch"
   wait_for 10 "running fake" fake_running
 }
 
 test_send_idle() {
   setup_projects
-  hub new --project demo --title "I" <<< 'brief' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "I" <<< 'brief' >/dev/null || fail "new"
   hub dispatch T-001 --wait || fail "dispatch"
   hub send T-001 "more" >/dev/null || fail "send"
   wait_for 10 "ready again" ticket_is ready
@@ -45,7 +45,7 @@ test_send_idle() {
 
 test_send_after_manual_marker() {
   setup_projects
-  hub new --project demo --title "M" <<< 'brief' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "M" <<< 'brief' >/dev/null || fail "new"
   hub dispatch T-001 --wait || fail "dispatch"
   touch "$(R)/interrupted"
   hub send T-001 "more" >/dev/null || fail "send"
@@ -57,7 +57,7 @@ test_send_after_manual_marker() {
 
 test_send_undispatched() {
   setup_projects
-  hub new --project demo --title "U" <<< 'brief' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "U" <<< 'brief' >/dev/null || fail "new"
   hub send T-001 "x" >/dev/null 2>&1 && fail "send before dispatch must fail"
   [ ! -s "$FAKE_CLAUDE_LOG" ] || fail "no worker may start"
 }
@@ -108,9 +108,9 @@ test_stop() {
 
 test_stop_queued() {
   setup_projects
-  export HUB_MAX_WORKERS=1 HUB_QUEUE_POLL_S=0.5 FAKE_CLAUDE_SLEEP=5
-  hub new --project demo --title "A" <<< 'a' >/dev/null || fail "new"
-  hub new --project demo --title "B" <<< 'b' >/dev/null || fail "new"
+  export HUB_MAX_WORKERS=1 HUB_QUEUE_POLL_S=0.5 FAKE_CLAUDE_SLEEP=20
+  hub new --project demo --files out.txt --title "A" <<< 'a' >/dev/null || fail "new"
+  hub new --project demo --files out.txt --title "B" <<< 'b' >/dev/null || fail "new"
   hub dispatch T-001 >/dev/null || fail "dispatch 1"
   wait_for 10 "T-001 running" fake_running
   hub dispatch T-002 >/dev/null || fail "dispatch 2"
@@ -127,9 +127,52 @@ test_stop_queued() {
   unset HUB_MAX_WORKERS HUB_QUEUE_POLL_S FAKE_CLAUDE_SLEEP
 }
 
+test_stop_idle_keeps_status() {
+  setup_projects
+  hub new --project demo --files out.txt --title "K" <<< 'brief' >/dev/null || fail "new"
+  hub dispatch T-001 --wait || fail "dispatch"
+  assert_eq ready "$(hub ticket get T-001 status)" "ready before stop"
+  mkdir -p "$(R)/pending"; echo leftover > "$(R)/pending/1.md"; touch "$(R)/was-interrupted" "$(R)/stop"
+  local n; n=$(wc -l < "$HUB_DIR/.runs/events.log")
+  hub stop T-001 | grep -qx 'stopped T-001 (was not running)' || fail "idle stop message"
+  assert_eq ready "$(hub ticket get T-001 status)" "status untouched"
+  assert_eq "exited 0" "$(cat "$(R)/status")" "run status untouched"
+  assert_eq "$n" "$(wc -l < "$HUB_DIR/.runs/events.log")" "no events.log line"
+  [ -z "$(ls -A "$(R)/pending")" ] || fail "pending not cleared"
+  [ ! -e "$(R)/was-interrupted" ] && [ ! -e "$(R)/stop" ] || fail "markers not cleared"
+}
+
+test_dispatch_refuses_ready() {
+  setup_projects
+  hub new --project demo --files out.txt --title "D" <<< 'brief' >/dev/null || fail "new"
+  hub dispatch T-001 --wait || fail "dispatch"
+  local out rc=0
+  out=$(hub dispatch T-001 2>&1) || rc=$?
+  assert_eq 1 "$rc" "exit"
+  echo "$out" | grep -qF 'T-001 is ready; use hub send for a follow-up or hub dispatch --again to re-run' || fail "message: $out"
+  assert_eq 1 "$(log_py 'print(len(E))')" "no second worker"
+  hub dispatch T-001 --again --wait || fail "--again"
+  assert_eq 2 "$(log_py 'print(len(E))')" "--again runs"
+  assert_eq ready "$(hub ticket get T-001 status)" "status"
+}
+
+test_stop_running_clears_pending() {
+  setup_projects
+  start_slow
+  mkdir -p "$(R)/pending"; echo late > "$(R)/pending/1.md"; touch "$(R)/was-interrupted"
+  hub stop T-001 >/dev/null || fail "stop"
+  wait_for 5 "no fake" no_fake
+  assert_eq stopped "$(hub ticket get T-001 status)" "ticket status"
+  [ -z "$(ls -A "$(R)/pending")" ] || fail "pending not cleared"
+  [ ! -e "$(R)/was-interrupted" ] || fail "was-interrupted not cleared"
+}
+
 last_line() { tail -n 1 "$HUB_DIR/.runs/events.log"; }
 
 test_send_idle
+test_stop_idle_keeps_status
+test_dispatch_refuses_ready
+test_stop_running_clears_pending
 test_send_after_manual_marker
 test_send_undispatched
 test_send_interrupts

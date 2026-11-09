@@ -253,10 +253,18 @@ def cmd_new(argv):
     ap.add_argument("--files", default="")
     ap.add_argument("--spec", default="")
     ap.add_argument("--base", default="")
+    ap.add_argument("--max-turns", default="")
+    ap.add_argument("--max-budget-usd", default="")
     a = ap.parse_args(argv)
     proj = projects().get(a.project)
     if proj is None:
         die("unknown project: %s" % a.project)
+    if proj.get("isolation", "worktree") == "none" and not parse_list(a.files):
+        die("--files is required for isolation: none projects")
+    if a.max_turns and not re.match(r"^[1-9][0-9]*$", a.max_turns):
+        die("--max-turns must be a positive integer")
+    if a.max_budget_usd and not re.match(r"^[0-9]+(\.[0-9]+)?$", a.max_budget_usd):
+        die("--max-budget-usd must be a number")
     brief = sys.stdin.read()
     if brief.endswith("\n"):
         brief = brief[:-1]
@@ -269,6 +277,7 @@ def cmd_new(argv):
         "MODEL": a.model, "DEPS": fmt_value("deps", parse_list(a.deps)),
         "FILES": fmt_value("files", parse_list(a.files)), "HOLD": "none",
         "BASE": a.base or proj.get("main", "main"), "CREATED": created, "SPEC": a.spec,
+        "MAXTURNS": a.max_turns, "MAXBUDGET": a.max_budget_usd,
         "BRIEF": brief,
     }
     out = render_template(values)

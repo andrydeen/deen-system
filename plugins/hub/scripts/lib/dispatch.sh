@@ -22,7 +22,7 @@ hub_slot_acquire() {
       fi
     fi
     if mkdir "$slots/$n" 2>/dev/null; then
-      echo "${HUB_LOCK_PID:-$$}" > "$slots/$n/pid"
+      hub__write_atomic "$slots/$n/pid" "${HUB_LOCK_PID:-$$}"
       echo "$t" > "$slots/$n/ticket"
       echo "$n" > "$HUB_DIR/.runs/$t/slot"
       hub_unlock "$HUB_DIR/.runs/.slots.lock"
@@ -46,10 +46,17 @@ hub_slot_release() {
 
 # hub_build_cmd <ticket> <prompt-file> <first|resume> — fills the global array HUB_CMD.
 hub_build_cmd() {
-  local t="$1" pf="$2" sidmode="$3" run="$HUB_DIR/.runs/$1" mode model rules
+  local t="$1" pf="$2" sidmode="$3" run="$HUB_DIR/.runs/$1" mode model rules run_abs mt mb
   mode=$(hub_config_get WORKER_AGENT_MODE agent)
   model=$(hub__tget "$t" model)
-  rules=$(sed "s/{{TICKET}}/$t/g" "$HUB_PLUGIN_ROOT/templates/worker-rules.md")
+  run_abs=$(cd "$run" && pwd) || run_abs="$run"
+  # {{TICKET}} and {{RUN_DIR}} (absolute; the worker's progress.log lives there, outside
+  # the project, so it is never committed). Plain string replace: paths may hold / & etc.
+  rules=$(python3 -c 'import sys; print(open(sys.argv[1], encoding="utf-8").read().replace("{{TICKET}}", sys.argv[2]).replace("{{RUN_DIR}}", sys.argv[3]), end="")' \
+    "$HUB_PLUGIN_ROOT/templates/worker-rules.md" "$t" "$run_abs")
+  # per-ticket overrides (hub new --max-turns / --max-budget-usd, or hub set)
+  mt=$(hub__tget "$t" max_turns); [ -n "$mt" ] || mt="${HUB_MAX_TURNS:-150}"
+  mb=$(hub__tget "$t" max_budget_usd); [ -n "$mb" ] || mb="${HUB_MAX_BUDGET_USD:-8}"
   HUB_CMD=(claude -p "$(cat "$pf")")
   if [ "$mode" = inline ]; then
     [ -z "$model" ] || HUB_CMD+=(--model "$model")
@@ -64,36 +71,47 @@ hub_build_cmd() {
   else
     HUB_CMD+=(--resume "$(cat "$run/session-id")")
   fi
-  HUB_CMD+=(--permission-mode auto --allowedTools "Write,Edit,Read,Glob,Grep"
+  HUB_CMD+=(--add-dir "$run_abs"
+    --permission-mode auto --allowedTools "Write,Edit,Read,Glob,Grep"
+    --disallowedTools "Bash(git push:*),Bash(git merge:*)"
     --output-format stream-json --verbose
-    --max-turns "${HUB_MAX_TURNS:-150}" --max-budget-usd "${HUB_MAX_BUDGET_USD:-8}")
+    --max-turns "$mt" --max-budget-usd "$mb")
 }
 
 # hub_finish_round <ticket> <exit-code|dead|interrupted|stopped>
 # The pid file is removed LAST in every branch: its disappearance tells waiters that
 # all bookkeeping is done.
 hub_finish_round() {
-  local t="$1" how="$2" run="$HUB_DIR/.runs/$1" now st denied note off
+  local t="$1" how="$2" run="$HUB_DIR/.runs/$1" now st denied note off cp i
   now=$(hub_now)
   case "$how" in
     interrupted)
-      echo interrupted > "$run/status"
+      hub__write_atomic "$run/status" interrupted
       rm -f -- "$run/interrupted"
       hub_slot_release "$t"
       hub_log "$t" "interrupted"
       rm -f -- "$run/pid"
       ;;
     stopped)
-      echo stopped > "$run/status"
+      hub__write_atomic "$run/status" stopped
       hub__tset "$t" status stopped
       hub_slot_release "$t"
-      rm -f -- "$run/stop" "$run/interrupted"
+      rm -f -- "$run/stop" "$run/interrupted" "$run/was-interrupted" "$run/pending"/*.md
       echo "$now stopped $t" >> "$HUB_DIR/.runs/events.log"
       hub_log "$t" "stopped"
       rm -f -- "$run/pid"
       ;;
     dead)
-      echo failed > "$run/status"
+      # the round's shell is gone; do not leave its claude process running unwatched
+      cp=$(cat "$run/claude-pid" 2>/dev/null)
+      if hub_pid_alive "$cp"; then
+        kill -INT "$cp" 2>/dev/null
+        i=0
+        while [ "$i" -lt 10 ] && hub_pid_alive "$cp"; do sleep 0.2; i=$((i + 1)); done
+        hub_pid_alive "$cp" && kill -TERM "$cp" 2>/dev/null
+      fi
+      rm -f -- "$run/claude-pid"
+      hub__write_atomic "$run/status" failed
       hub_slot_release "$t"
       hub__tset "$t" status failed
       echo "$now failed $t worker died" >> "$HUB_DIR/.runs/events.log"
@@ -125,7 +143,7 @@ print("permission denied: %s" % dt[0] if dt and d.get("denied", 0) > 0 else
         case "$note" in "permission denied:"*) ;; *) note="permission denied: $denied tool call(s)" ;; esac
       fi
       hub__tset "$t" status "$st"
-      echo "exited $how" > "$run/status"
+      hub__write_atomic "$run/status" "exited $how"
       date "+%Y-%m-%dT%H:%M:%S" > "$run/ended"
       hub_slot_release "$t"
       echo "$now $st $t${note:+ $note}" >> "$HUB_DIR/.runs/events.log"
@@ -155,19 +173,30 @@ hub__wait_unless_marker() {
   return 0
 }
 
+# hub__path_missing <ticket> <dir> — the round cannot start: fail the run and the ticket.
+hub__path_missing() {
+  local run="$HUB_DIR/.runs/$1"
+  hub__write_atomic "$run/status" failed; rm -f -- "$run/pid"
+  hub__tset "$1" status failed
+  hub_log "$1" "project path missing: $2"
+  echo "$(hub_now) failed $1 project path missing: $2" >> "$HUB_DIR/.runs/events.log"
+}
+
 # hub_round <ticket> <prompt-file> — runs one worker round to completion in this shell.
 # Returns the claude exit code (0 when interrupted).
 hub_round() {
   local t="$1" pf="$2" run="$HUB_DIR/.runs/$1" cwd path iso base repo main rn sid sidmode
-  local slot rc retry=0 pid base_s soff eoff matched poll
+  local slot rc retry=0 pid base_s soff eoff matched poll verdict errtxt
   HUB_LOCK_PID=$(exec sh -c 'echo $PPID'); export HUB_LOCK_PID
   mkdir -p "$run" "$HUB_DIR/.runs/.slots"
-  echo "$HUB_LOCK_PID" > "$run/pid"
+  hub__write_atomic "$run/pid" "$HUB_LOCK_PID"
 
   [ -s "$run/session-id" ] || python3 -c 'import uuid; print(uuid.uuid4())' > "$run/session-id"
   rn=$(cat "$run/round" 2>/dev/null); rn=$(( ${rn:-0} + 1 )); echo "$rn" > "$run/round"
 
   path=$(hub__tget "$t" path); iso=$(hub__tget "$t" isolation)
+  # The project directory (main checkout, or the repo that holds the worktree) must exist.
+  [ -n "$path" ] && [ -d "$path" ] || { hub__path_missing "$t" "$path"; return 1; }
   if [ "$iso" = none ]; then
     cwd="$path"
   else
@@ -185,7 +214,7 @@ hub_round() {
         git -C "$repo" worktree add -b "hub/$t" "$cwd" "$base" >"$run/worktree.log" 2>&1
       fi
       if [ $? -ne 0 ]; then
-        echo failed > "$run/status"; rm -f -- "$run/pid"
+        hub__write_atomic "$run/status" failed; rm -f -- "$run/pid"
         hub__tset "$t" status failed
         hub_log "$t" "worktree creation failed (see .runs/$t/worktree.log)"
         echo "$(hub_now) failed $t worktree creation failed" >> "$HUB_DIR/.runs/events.log"
@@ -195,10 +224,11 @@ hub_round() {
     echo "$cwd" > "$run/worktree"
   fi
   echo "$cwd" > "$run/project"
+  [ -d "$cwd" ] || { hub__path_missing "$t" "$cwd"; return 1; }
 
   poll="${HUB_QUEUE_POLL_S:-10}"
   while ! slot=$(hub_slot_acquire "$t"); do
-    echo queued > "$run/status"
+    hub__write_atomic "$run/status" queued
     if ! hub__wait_unless_marker "$poll" "$run"; then
       hub_lock "$run/lock"
       hub_finish_round "$t" stopped
@@ -217,7 +247,7 @@ hub_round() {
   # A marker left by an earlier round must not cancel this one.
   hub_lock "$run/lock"
   rm -f -- "$run/interrupted"
-  echo running > "$run/status"
+  hub__write_atomic "$run/status" running
   hub_unlock "$run/lock"
   base_s="${HUB_RETRY_BASE_S:-30}"
   while :; do
@@ -236,9 +266,9 @@ hub_round() {
     soff=$(wc -c < "$run/stderr.log" | tr -d ' '); eoff=$(wc -c < "$run/events.jsonl" | tr -d ' ')
     ( cd "$cwd" && hub_exec_worker "${HUB_CMD[@]}" ) </dev/null >>"$run/events.jsonl" 2>>"$run/stderr.log" &
     pid=$!
-    echo "$pid" > "$run/claude-pid"
-    echo "$pid" > "$run/pid"
-    echo "$pid" > "$HUB_DIR/.runs/.slots/$slot/pid"
+    hub__write_atomic "$run/claude-pid" "$pid"
+    hub__write_atomic "$run/pid" "$pid"
+    hub__write_atomic "$HUB_DIR/.runs/.slots/$slot/pid" "$pid"
     # Known gap: a first attempt that fails before the real binary creates a session
     # makes --resume fail on retry ("No conversation found"). Future: detect that
     # message and fall back to --session-id.
@@ -247,37 +277,51 @@ hub_round() {
     wait "$pid"; rc=$?
     hub_lock "$run/lock"
     rm -f -- "$run/claude-pid"
-    echo "$HUB_LOCK_PID" > "$run/pid"
-    echo "$HUB_LOCK_PID" > "$HUB_DIR/.runs/.slots/$slot/pid"
+    hub__write_atomic "$run/pid" "$HUB_LOCK_PID"
+    hub__write_atomic "$HUB_DIR/.runs/.slots/$slot/pid" "$HUB_LOCK_PID"
     if [ -f "$run/stop" ]; then
       hub_finish_round "$t" stopped; hub_unlock "$run/lock"; return 0
     elif [ -f "$run/interrupted" ]; then
       hub_finish_round "$t" interrupted; hub_unlock "$run/lock"; return 0
     fi
-    echo finishing > "$run/status"
+    hub__write_atomic "$run/status" finishing
     hub_unlock "$run/lock"
     if [ "$rc" -ne 0 ] && [ "$retry" -lt 3 ]; then
       matched=0
       tail -c +$((eoff + 1)) "$run/events.jsonl" > "$run/events-attempt.jsonl"
-      if ! python3 -c '
+      # One pass over this attempt's result lines: "veto" (max turns / budget: never
+      # retry), "api" (api_error_status 408/429/5xx: transient) or nothing.
+      verdict=$(python3 -c '
 import json, sys
-for l in open(sys.argv[1]):
+v = ""
+for l in open(sys.argv[1], encoding="utf-8", errors="replace"):
     try: o = json.loads(l)
     except ValueError: continue
-    if isinstance(o, dict) and o.get("type") == "result":
-        sub = str(o.get("subtype") or "")
-        if sub == "error_max_turns" or "budget" in sub: sys.exit(1)
-' "$run/events-attempt.jsonl"; then
+    if not (isinstance(o, dict) and o.get("type") == "result"): continue
+    sub = str(o.get("subtype") or "")
+    if sub == "error_max_turns" or "budget" in sub:
+        print("veto"); sys.exit(0)
+    try: s = int(o.get("api_error_status"))
+    except (TypeError, ValueError): continue
+    if s in (408, 429) or 500 <= s <= 599: v = "api"
+print(v)
+' "$run/events-attempt.jsonl" 2>/dev/null)
+      if [ "$verdict" = veto ]; then
         :
-      elif { tail -c +$((soff + 1)) "$run/stderr.log"; python3 "$HUB_LIB/events.py" errors "$run/events-attempt.jsonl"; } \
-          | grep -E -q -i '408|429|5[0-9][0-9]|overloaded|rate.?limit|timed? ?out|ECONNRESET|socket hang up'; then
+      elif [ "$verdict" = api ]; then
         matched=1
+      else
+        errtxt=$(tail -c +$((soff + 1)) "$run/stderr.log"; python3 "$HUB_LIB/events.py" errors "$run/events-attempt.jsonl")
+        if printf '%s\n' "$errtxt" | grep -E -q -w '408|429|5[0-9][0-9]' \
+            || printf '%s\n' "$errtxt" | grep -E -q -i 'overloaded|rate.?limit|timed? ?out|ECONNRESET|socket hang up'; then
+          matched=1
+        fi
       fi
       if [ "$matched" -eq 1 ]; then
         retry=$((retry + 1))
-        echo "retrying $retry" > "$run/status"
+        hub__write_atomic "$run/status" "retrying $retry"
         hub__wait_unless_marker $(( base_s * (1 << (retry - 1)) )) "$run" both || true
-        echo running > "$run/status"
+        hub__write_atomic "$run/status" running
         continue
       fi
     fi
@@ -287,18 +331,19 @@ for l in open(sys.argv[1]):
   return "$rc"
 }
 
-# hub dispatch <ticket> [--wait]
+# hub dispatch <ticket> [--wait] [--again]
 cmd_dispatch() {
-  local t="" wait=0 run rn pf p
+  local t="" wait=0 again=0 run rn pf p tst
   while [ $# -gt 0 ]; do
     case "$1" in
       --wait) wait=1; shift ;;
+      --again) again=1; shift ;;
       -*) hub_die "dispatch: unknown option: $1" ;;
       *) [ -z "$t" ] || hub_die "dispatch: one ticket only"; t="$1"; shift ;;
     esac
   done
-  [ -n "$t" ] || hub_die "usage: hub dispatch <ticket> [--wait]"
-  python3 "$HUB_LIB/tickets.py" get "$t" status >/dev/null || hub_die "unknown ticket: $t"
+  [ -n "$t" ] || hub_die "usage: hub dispatch <ticket> [--wait] [--again]"
+  tst=$(python3 "$HUB_LIB/tickets.py" get "$t" status) || hub_die "unknown ticket: $t"
   run="$HUB_DIR/.runs/$t"
   mkdir -p "$run"
   hub_lock "$run/lock"
@@ -307,11 +352,20 @@ cmd_dispatch() {
     hub_unlock "$run/lock"
     hub_die "$t is already running"
   fi
+  # A fresh round only from a state that wants one; anything else is a misfire
+  # (a follow-up belongs to hub send) unless the human asked for a re-run.
+  case "$tst" in
+    open|failed|stopped|unknown-report|blocked) ;;
+    *) if [ "$again" -eq 0 ]; then
+         hub_unlock "$run/lock"
+         hub_die "$t is $tst; use hub send for a follow-up or hub dispatch --again to re-run"
+       fi ;;
+  esac
   rn=$(cat "$run/round" 2>/dev/null); rn=$(( ${rn:-0} + 1 ))
   pf="$run/prompt-$rn.md"
   python3 "$HUB_LIB/tickets.py" brief "$t" > "$pf" || { hub_unlock "$run/lock"; hub_die "cannot read brief of $t"; }
   rm -f -- "$run/stop"
-  echo starting > "$run/status"
+  hub__write_atomic "$run/status" starting
   if [ "$wait" -eq 1 ]; then
     hub_unlock "$run/lock"
     hub_round "$t" "$pf"
@@ -320,7 +374,7 @@ cmd_dispatch() {
   ( hub_round "$t" "$pf" ) >/dev/null 2>&1 &
   p=$!
   disown "$p" 2>/dev/null
-  echo "$p" > "$run/pid"
+  hub__write_atomic "$run/pid" "$p"
   hub_unlock "$run/lock"
   echo "dispatched $t round $rn pid $p"
 }

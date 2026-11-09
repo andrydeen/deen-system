@@ -58,7 +58,24 @@ def final_json(run):
     return d if isinstance(d, dict) else {}
 
 
+def total_cost(run):
+    """Cumulative cost of every round (events.jsonl); final.json's last round as fallback."""
+    ev = os.path.join(run, "events.jsonl")
+    if os.path.exists(ev):
+        evs, _ = events.read_events(ev)
+        return events.total_cost(evs)
+    try:
+        return float(final_json(run).get("cost_usd") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def progress_file(run):
+    # the worker writes .runs/<T>/progress.log (worker-rules {{RUN_DIR}}); fall back to
+    # <cwd>/progress.log for workers that still write it in their working directory.
+    own = os.path.join(run, "progress.log")
+    if os.path.exists(own):
+        return own
     # the "project" entry is a file holding the worker cwd (or a directory)
     pf = os.path.join(run, "project")
     if os.path.isdir(pf):
@@ -102,10 +119,7 @@ def rows(include_all=False):
         deps = fm.get("deps") or []
         if not isinstance(deps, list):
             deps = [deps]
-        try:
-            cost = float(fin.get("cost_usd") or 0.0)
-        except (TypeError, ValueError):
-            cost = 0.0
+        cost = total_cost(run)
         out.append({
             "id": tid, "project": fm.get("project", ""), "title": fm.get("title", ""),
             "status": status, "mode": fm.get("mode", ""), "deps": deps,
@@ -196,7 +210,7 @@ def show(ticket_id):
         if os.path.isdir(wt):
             out.append("branch: hub/%s" % ticket_id)
     out.append("pending: %d" % npend)
-    out.append("cost_usd: %s" % final_json(run).get("cost_usd", 0.0))
+    out.append("cost_usd: %s" % total_cost(run))
     return "\n".join(out)
 
 

@@ -78,10 +78,11 @@ def details(tid, opts=None):
     ev = os.path.join(run, "events.jsonl")
     st = events.stats(ev, o["loop_window_min"])
     if status == "running" and os.path.exists(os.path.join(run, "claude-pid")):
-        cwd = read(os.path.join(run, "project"))
-        prog = os.path.join(cwd, "progress.log") if cwd else ""
-        if not prog or not os.path.exists(prog):
-            prog = os.path.join(run, "progress.log")
+        prog = os.path.join(run, "progress.log")
+        if not os.path.exists(prog):
+            cwd = read(os.path.join(run, "project"))
+            if cwd and os.path.exists(os.path.join(cwd, "progress.log")):
+                prog = os.path.join(cwd, "progress.log")
         ages = [age_min(ev), age_min(prog)]
         ages = [a if a is not None else float("inf") for a in ages]
         newest = min(ages)
@@ -101,7 +102,7 @@ def details(tid, opts=None):
         pass  # dispatch has not written the pid yet: grace
     elif pid is None or not pid_alive(pid):
         out["dead"] = "pid %s not alive" % (pid if pid is not None else "missing")
-    cost = st["cost_usd"]
+    cost = st["total_cost_usd"]  # every round so far; a live round has no result line yet
     if cost <= 0:
         try:
             cost = float(json.loads(read(os.path.join(run, "final.json")) or "{}").get("cost_usd") or 0)

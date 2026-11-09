@@ -127,9 +127,23 @@ def find_result(events):
     return res
 
 
+MARK = r"(?:\*\*|__|`)"
+FENCE_RE = re.compile(r"^```[\w-]*$")
+
+
+def unmark(line):
+    """Strip markdown emphasis/code marks around a report line and its key:
+    '**Status:** ready', '`Eval: green`', '__Files__: none' -> 'Key: value'."""
+    l = re.sub(r"^%s+" % MARK, "", line.strip())
+    l = re.sub(r"%s+$" % MARK, "", l)
+    l = re.sub(r"^([A-Za-z]+)%s*:%s*" % (MARK, MARK), r"\1:", l)
+    return l.strip()
+
+
 def parse_block(text):
     """Return (dict, None) or (None, note)."""
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    lines = [unmark(l) for l in text.splitlines() if l.strip() and not FENCE_RE.match(l.strip())]
+    lines = [l for l in lines if l]
     tail = lines[-4:]
     pats = ("Status", "Eval", "Files", "Note|Question")
     if len(tail) < 4 or not all(re.match(r"^(%s):" % p, l) for p, l in zip(pats, tail)):
@@ -174,6 +188,11 @@ def final(ev):
     out["cost_usd"] = float(res.get("total_cost_usd") or 0.0)
     text = res.get("result")
     out["text"] = text if isinstance(text, str) else ""
+    if res.get("is_error") is True:
+        # API-level failure (e.g. 529 overloaded): subtype says "success", the text is the error.
+        first = out["text"].strip().splitlines()[0].strip() if out["text"].strip() else ""
+        out["note"] = first or "api error %s" % res.get("api_error_status", "")
+        return out
     sub = res.get("subtype")
     if text is None or not isinstance(text, str) or sub != "success":
         note = str(sub or "no result")
@@ -190,13 +209,36 @@ def final(ev):
     return out
 
 
+def api_error_message(obj):
+    """True for an assistant line that carries an API error (flag on the line or its message)."""
+    msg = obj.get("message") if isinstance(obj.get("message"), dict) else {}
+    return obj.get("type") == "assistant" and (obj.get("is_api_error_message") is True
+                                               or msg.get("is_api_error_message") is True)
+
+
 def errors(ev):
-    """Error strings only: errors[] and a top-level error field of result/system lines."""
+    """Error strings only: errors[] and a top-level error field of result/system lines; the
+    result text and api_error_status of an is_error result line; the error and text of
+    assistant lines flagged is_api_error_message."""
     events, _ = read_events(ev)
     out = []
     for obj, _ts in events:
+        if api_error_message(obj):
+            msg = obj.get("message") if isinstance(obj.get("message"), dict) else {}
+            for e in (obj.get("error"), msg.get("error")):
+                if isinstance(e, str) and e:
+                    out.append(e)
+            t = text_of(msg.get("content"))
+            if t:
+                out.append(t)
+            continue
         if obj.get("type") not in ("result", "system"):
             continue
+        if obj.get("type") == "result" and obj.get("is_error") is True:
+            if isinstance(obj.get("result"), str) and obj["result"]:
+                out.append(obj["result"])
+            if obj.get("api_error_status") is not None:
+                out.append(str(obj["api_error_status"]))
         errs = obj.get("errors")
         if isinstance(errs, list):
             out.extend(e for e in errs if isinstance(e, str))
@@ -227,7 +269,20 @@ def stats(ev, window_min):
             "max_repeat_call": max(calls.values()) if calls else 0,
             "last_event_ts": last.isoformat().replace("+00:00", "Z") if last else "",
             "cost_usd": float(res.get("total_cost_usd") or 0.0) if res else 0.0,
+            "total_cost_usd": total_cost(events),
             "skipped": skipped}
+
+
+def total_cost(events):
+    """Sum of total_cost_usd over every result line (all rounds of the ticket)."""
+    tot = 0.0
+    for obj, _ts in events:
+        if obj.get("type") == "result":
+            try:
+                tot += float(obj.get("total_cost_usd") or 0.0)
+            except (TypeError, ValueError):
+                pass
+    return round(tot, 6)
 
 
 def main(argv):

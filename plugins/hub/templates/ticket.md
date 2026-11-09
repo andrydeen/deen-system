@@ -13,6 +13,8 @@ hold: {{HOLD}}
 base: {{BASE}}
 created: {{CREATED}}
 spec: {{SPEC}}
+max_turns: {{MAXTURNS}}
+max_budget_usd: {{MAXBUDGET}}
 ---
 
 ## Brief

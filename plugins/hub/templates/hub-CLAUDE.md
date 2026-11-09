@@ -19,6 +19,7 @@ This directory is the Hub. You are started as `hub-router`. Use `./bin/hub` for 
 - `./bin/hub eval T` — run the ticket's eval check; green or red.
 - `./bin/hub propose T "<recommendation>" [--push] [--no-telegram]` — write an approval record and notify.
 - `./bin/hub merge T [--push]` — merge an approved ticket; only after the human's yes.
+- `./bin/hub approval <id> [approved-executing|approved-executed|rejected]` — print or advance an approval record's status (claim before running its Exact steps, close after).
 
 ## Operator notes
 

@@ -44,6 +44,9 @@ cmd_send() {
   hub_lock "$run/lock"
   printf '%s\n' "$text" > "$run/pending/$ns.md"
   cpid=$(cat "$run/claude-pid" 2>/dev/null)
+  # Benign race: a send that reads claude-pid in the instant after the worker exited (before
+  # hub_round removes it) treats a completed round as interrupted; its output stays in
+  # events.jsonl and the resumed round carries on from it.
   if hub_pid_alive "$cpid"; then
     waiting=1
     [ -f "$run/interrupted" ] || hub_interrupt "$t"
@@ -87,11 +90,11 @@ cmd_send() {
   if [ -z "$(ls -A "$run/pending" 2>/dev/null)" ]; then
     hub_unlock "$run/lock"; echo "queued $t"; return 0
   fi
-  echo starting > "$run/status"
+  hub__write_atomic "$run/status" starting
   rn=$(cat "$run/round" 2>/dev/null); rn=$(( ${rn:-0} + 1 ))
   pf="$run/prompt-$rn.md"
   if [ -f "$run/was-interrupted" ]; then
-    pre="Interrupted by the human. Before anything else read progress.log and run git status to see what is already done, and state it in one line. New instruction:"
+    pre="Interrupted by the human. Before anything else read $(cd "$run" && pwd)/progress.log and run git status to see what is already done, and state it in one line. New instruction:"
     rm -f -- "$run/was-interrupted"
   else
     pre="Follow-up from the human:"
@@ -101,16 +104,24 @@ cmd_send() {
   ( hub_round "$t" "$pf" ) >/dev/null 2>&1 &
   n=$!
   disown "$n" 2>/dev/null
-  echo "$n" > "$run/pid"
+  hub__write_atomic "$run/pid" "$n"
   hub_unlock "$run/lock"
   echo "sent $t round $rn pid $n"
 }
 
-# hub__mark_stopped <ticket> — direct status/log update (nothing was running, or fallback).
+# hub__clear_markers <ticket> — drops steering left for a round that will not run.
+hub__clear_markers() {
+  local run="$HUB_DIR/.runs/$1"
+  rm -f -- "$run/stop" "$run/interrupted" "$run/was-interrupted" "$run/pending"/*.md
+}
+
+# hub__mark_stopped <ticket> — direct status/log update (fallback when the round did not
+# record its own stop).
 hub__mark_stopped() {
   local run="$HUB_DIR/.runs/$1"
+  hub__clear_markers "$1"
   hub__tset "$1" status stopped
-  echo stopped > "$run/status"
+  hub__write_atomic "$run/status" stopped
   echo "$(hub_now) stopped $1" >> "$HUB_DIR/.runs/events.log"
   hub_log "$1" "stopped"
 }
@@ -125,7 +136,8 @@ cmd_stop() {
   hub_lock "$run/lock"
   pid=$(cat "$run/pid" 2>/dev/null)
   if ! hub_pid_alive "$pid"; then
-    hub__mark_stopped "$t"
+    # Nothing to stop: the ticket's status (ready, done, ...) is left as it is.
+    hub__clear_markers "$t"
     hub_unlock "$run/lock"
     echo "stopped $t (was not running)"
     return 0

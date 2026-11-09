@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","session_id":"s1"}
+{"type":"result","subtype":"success","result":"Done.\n\n```\n**Status:** ready\n**Eval:** green\n`Files:` /p/a.xml (new)\n__Note__: none\n```","total_cost_usd":0.1}

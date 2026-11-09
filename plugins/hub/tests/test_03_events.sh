@@ -22,10 +22,25 @@ $EV final "$FX/events-interrupted.jsonl" | pj "d['denied_tools']==['Write','Bash
 assert_eq "interrupted" "$($EV errors "$FX/events-interrupted.jsonl")" "errors interrupted"
 assert_eq "" "$($EV errors "$FX/events-ready.jsonl")" "errors ready"
 $EV final "$TMP/no1" | pj "d['status']=='unknown-report' and d['note']=='no result line'" || fail "final no result"
+# I2: the real binary's API-error shape (is_error result, no errors[])
+$EV final "$FX/events-api-error.jsonl" | pj "d['status']=='unknown-report' and d['eval']=='n/a' and d['files']==[] and d['note']=='API Error: 529 overloaded'" || fail "final api error"
+$EV errors "$FX/events-api-error.jsonl" > "$TMP/apierr"
+grep -qx '529' "$TMP/apierr" || fail "errors lacks 529: $(cat "$TMP/apierr")"
+grep -q '^API Error: 529 overloaded' "$TMP/apierr" || fail "errors lacks text: $(cat "$TMP/apierr")"
+grep -qx 'overloaded_error' "$TMP/apierr" || fail "errors lacks assistant error: $(cat "$TMP/apierr")"
+# M7: a bolded report block inside a code fence still parses
+$EV final "$FX/events-fenced.jsonl" | pj "d['status']=='ready' and d['eval']=='green' and d['files']==['/p/a.xml (new)'] and d['note']==''" || fail "final fenced/bold"
+printf '%s\n' '{"type":"result","subtype":"success","result":"**Status:** maybe\nEval: n/a\nFiles: none\nNote: none"}' > "$TMP/badst.jsonl"
+$EV final "$TMP/badst.jsonl" | pj "d['status']=='unknown-report'" || fail "bad status still unknown-report"
 
 $EV stats "$FX/events-loop.jsonl" --window-min 30 | pj "d['edits_per_file']=={'/p/a.xml':9} and d['max_repeat_call']==11 and d['last_event_ts'].startswith('2026-11-09T16:28') and d['skipped']==0" || fail "stats loop"
 $EV stats "$FX/events-loop.jsonl" --window-min 10 | pj "d['edits_per_file']=={'/p/a.xml':0} or d['edits_per_file']=={}" || fail "stats window"
 $EV stats "$FX/events-ready.jsonl" --window-min 30 | pj "d['cost_usd']==0.42 and d['edits_per_file']=={'/p/a.xml':1}" || fail "stats ready"
 printf 'not json\n{"type":"result","subtype":"success","result":"x"}\n' > "$TMP/bad.jsonl"
 $EV stats "$TMP/bad.jsonl" --window-min 30 | pj "d['skipped']==1" || fail "skipped"
+# I6: total_cost_usd sums every result line (all rounds); cost_usd stays the last one
+printf '%s\n' '{"type":"result","subtype":"success","result":"x","total_cost_usd":0.42}' \
+  '{"type":"result","subtype":"success","result":"y","total_cost_usd":0.5}' > "$TMP/two.jsonl"
+$EV stats "$TMP/two.jsonl" --window-min 30 | pj "d['total_cost_usd']==0.92 and d['cost_usd']==0.5" || fail "stats total cost"
+$EV final "$TMP/two.jsonl" | pj "d['cost_usd']==0.5" || fail "final keeps last round cost"
 echo "PASS $0"
