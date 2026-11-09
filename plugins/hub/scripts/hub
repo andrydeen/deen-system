@@ -23,14 +23,14 @@ Subcommands:
   new        create a ticket
   note       append a note to a ticket
   set        set a ticket field
-  ticket     show or edit a ticket
+  ticket     ticket subcommands: get, brief, list, projects, eval-set
   dispatch   start a background worker for a ticket
   send       send a steering message to a running worker
   stop       interrupt a running worker
   board      console board of all tickets
   show       show one ticket with its recent activity
-  events     print worker events
-  watch      stream events as they happen
+  events     print the last events and follow the log
+  watch      watchdog pass: flag stalled, looping, dead or over-budget workers
   eval       evaluate a finished worker's result
   propose    propose a merge for a ticket
   merge      merge an approved ticket

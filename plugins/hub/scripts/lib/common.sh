@@ -64,6 +64,9 @@ cmd_init() {
   if [ ! -f "$HUB_DIR/projects.yaml" ]; then
     cp "$HUB_PLUGIN_ROOT/templates/projects.yaml.example" "$HUB_DIR/projects.yaml"
   fi
+  if [ ! -f "$HUB_DIR/CLAUDE.md" ]; then
+    cp "$HUB_PLUGIN_ROOT/templates/hub-CLAUDE.md" "$HUB_DIR/CLAUDE.md"
+  fi
   if [ ! -f "$HUB_DIR/INDEX.md" ]; then
     printf '# Hub index\n\n' > "$HUB_DIR/INDEX.md"
   fi
