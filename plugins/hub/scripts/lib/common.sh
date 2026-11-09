@@ -7,10 +7,9 @@ hub_die() { echo "hub: $*" >&2; exit 1; }
 
 hub_now() { date "+%Y-%m-%dT%H:%M"; }
 
-# hub_log <ticket> <text> — stub until tickets.py exists: appends to the events log.
+# hub_log <ticket> <text> — appends a dated line to the ticket's Log section.
 hub_log() {
-  mkdir -p "$HUB_DIR/.runs"
-  echo "- $(hub_now) $1 $2" >> "$HUB_DIR/.runs/events.log"
+  python3 "$HUB_LIB/tickets.py" note "$1" "$2"
 }
 
 hub_pid_alive() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
