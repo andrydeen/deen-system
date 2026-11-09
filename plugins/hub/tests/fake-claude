@@ -54,6 +54,12 @@ def pause():
         while time.time() < end:
             time.sleep(0.05)
 
+touch = os.environ.get("FAKE_CLAUDE_TOUCH")
+if touch:
+    os.makedirs(os.path.dirname(os.path.abspath(touch)), exist_ok=True)
+    with open(touch, "w") as f:
+        f.write("touched")
+
 emit({"type": "system", "subtype": "init"})
 events = os.environ.get("FAKE_CLAUDE_EVENTS")
 has_result = False

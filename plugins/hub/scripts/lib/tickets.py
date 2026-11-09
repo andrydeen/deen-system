@@ -303,6 +303,22 @@ def cmd_set(argv):
     regen_index()
 
 
+def cmd_eval_set(argv):
+    if len(argv) != 2:
+        die("usage: eval-set <ticket> <command>")
+    tid, cmd = argv
+    path = ticket_path(tid)
+    with flock(tid + ".lock"):
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        j = text.rfind("\n## Eval")
+        if j < 0:
+            die("ticket has no ## Eval section: %s" % tid)
+        k = text.find("\n## Log", j + 1)
+        tail = text[k:] if k >= 0 else ""
+        atomic_write(path, text[:j] + "\n## Eval\n\n```check\n%s\n```\n" % cmd + tail)
+
+
 def cmd_get(argv):
     if not argv:
         die("usage: get <ticket> [key]")
@@ -335,6 +351,8 @@ def main(argv):
         cmd_note(rest)
     elif sub == "set":
         cmd_set(rest)
+    elif sub == "eval-set":
+        cmd_eval_set(rest)
     elif sub == "get":
         cmd_get(rest)
     elif sub == "brief":
