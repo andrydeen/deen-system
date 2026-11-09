@@ -85,9 +85,10 @@ def details(tid, opts=None):
         ages = [age_min(ev), age_min(prog)]
         ages = [a if a is not None else float("inf") for a in ages]
         newest = min(ages)
-        if newest > o["stall_min"]:
-            out["stall"] = "no output for %d min" % (int(newest) if newest != float("inf")
-                                                      else int(o["stall_min"]))
+        if newest == float("inf"):
+            out["stall"] = "no output files"
+        elif newest > o["stall_min"]:
+            out["stall"] = "no output for %d min" % int(newest)
     if status == "running":
         hot = sorted(((n, f) for f, n in st["edits_per_file"].items() if n >= o["loop_edits"]),
                      reverse=True)
@@ -96,7 +97,9 @@ def details(tid, opts=None):
         elif st["max_repeat_call"] > o["repeat_calls"]:
             out["loop"] = "same call ×%d" % st["max_repeat_call"]
     pid = read_pid(run)
-    if pid is None or not pid_alive(pid):
+    if pid is None and status == "starting":
+        pass  # dispatch has not written the pid yet: grace
+    elif pid is None or not pid_alive(pid):
         out["dead"] = "pid %s not alive" % (pid if pid is not None else "missing")
     cost = st["cost_usd"]
     if cost <= 0:

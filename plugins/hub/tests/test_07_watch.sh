@@ -93,7 +93,31 @@ test_watch_skips_finished() {
   assert_eq "" "$(hub ticket get T-001 flag)" "flag"
 }
 
-for t in test_watch_stall test_watch_loop test_watch_dead test_watch_budget test_watch_healthy_clears test_watch_skips_finished; do
+test_watch_dead_recheck() {
+  setup_projects; new_ticket
+  mk_run T-001 running
+  hub set T-001 status running >/dev/null
+  echo 999999 > "$HUB_DIR/.runs/T-001/pid"
+  python3 "$PLUGIN_ROOT/scripts/lib/watch.py" watch | grep -q '⚠ dead T-001' || fail "watch.py should flag dead"
+  # the round finishes between detection and the finish step
+  echo "exited 0" > "$HUB_DIR/.runs/T-001/status"
+  rm -f -- "$HUB_DIR/.runs/T-001/pid"
+  hub watch >/dev/null 2>&1 || fail "hub watch"
+  assert_eq "exited 0" "$(cat "$HUB_DIR/.runs/T-001/status")" "status untouched"
+  assert_eq running "$(hub ticket get T-001 status)" "ticket status untouched"
+  [ -e "$HUB_DIR/.runs/T-001/lock" ] && fail "lock left behind"
+  return 0
+}
+
+test_watch_starting_grace() {
+  setup_projects; new_ticket
+  mk_run T-001 starting
+  local out; out="$(hub watch)" || fail "watch"
+  [ -z "$out" ] || fail "expected no output: $out"
+  assert_eq "" "$(hub ticket get T-001 flag)" "flag"
+}
+
+for t in test_watch_stall test_watch_loop test_watch_dead test_watch_budget test_watch_healthy_clears test_watch_skips_finished test_watch_dead_recheck test_watch_starting_grace; do
   ( "$t" ) || exit 1
 done
 echo "PASS ${0##*/}"
