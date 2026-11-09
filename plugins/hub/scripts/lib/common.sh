@@ -40,7 +40,7 @@ hub_lock() {
     sleep 0.1
     waited=$((waited + 1))
   done
-  echo "$$" > "$dir/pid"
+  echo "${HUB_LOCK_PID:-$$}" > "$dir/pid"
 }
 
 hub_unlock() { rm -r -f -- "$1"; }
