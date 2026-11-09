@@ -159,7 +159,7 @@ test_dispatch_no_retry_on_max_turns() {
   setup_projects
   printf '%s\n' '{"type":"result","subtype":"error_max_turns","result":null,"duration_ms":523,"total_cost_usd":0.5}' > "$TMP_ROOT/mt.jsonl"
   hub new --project demo --title "M" <<< 'b' >/dev/null || fail "new"
-  FAKE_CLAUDE_EVENTS="$TMP_ROOT/mt.jsonl" FAKE_CLAUDE_EXIT=1 HUB_RETRY_BASE_S=0 hub dispatch T-001 --wait
+  FAKE_CLAUDE_STDERR="429 rate limit" FAKE_CLAUDE_EVENTS="$TMP_ROOT/mt.jsonl" FAKE_CLAUDE_EXIT=1 HUB_RETRY_BASE_S=0 hub dispatch T-001 --wait
   assert_eq 1 "$(log_py 'print(len(E))')" "no retry"
   assert_eq unknown-report "$(hub ticket get T-001 status)" "status"
 }
@@ -167,9 +167,11 @@ test_dispatch_no_retry_on_max_turns() {
 test_worker_sigint_default() {
   setup_projects
   . "$PLUGIN_ROOT/scripts/lib/dispatch.sh"
-  ( hub_exec_worker python3 -c 'import signal; print(signal.getsignal(signal.SIGINT)!=signal.SIG_IGN)' > "$TMP_ROOT/sig" ) >/dev/null 2>&1 &
-  wait
-  assert_eq True "$(cat "$TMP_ROOT/sig")" "wrapper restores SIGINT"
+  local p
+  ( cd "$TMP_ROOT" && hub_exec_worker python3 -c 'import os,signal; print(signal.getsignal(signal.SIGINT)!=signal.SIG_IGN, os.getpid())' > "$TMP_ROOT/sig" ) >/dev/null 2>&1 &
+  p=$!
+  wait "$p"
+  assert_eq "True $p" "$(cat "$TMP_ROOT/sig")" "wrapper restores SIGINT and keeps pid"
   ( python3 -c 'import signal; print(signal.getsignal(signal.SIGINT)!=signal.SIG_IGN)' > "$TMP_ROOT/sig2" ) >/dev/null 2>&1 &
   wait
   assert_eq False "$(cat "$TMP_ROOT/sig2")" "control: ignored without wrapper"

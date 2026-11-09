@@ -27,6 +27,9 @@ if os.environ.get("FAKE_CLAUDE_FAIL_FIRST") == "1" and state:
         sys.stderr.write("429 rate limit\n")
         sys.exit(1)
 
+if os.environ.get("FAKE_CLAUDE_STDERR"):
+    sys.stderr.write(os.environ["FAKE_CLAUDE_STDERR"] + "\n")
+
 def emit(obj):
     sys.stdout.write((obj if isinstance(obj, str) else json.dumps(obj)) + "\n")
     sys.stdout.flush()

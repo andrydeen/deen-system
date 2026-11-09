@@ -127,7 +127,7 @@ print("permission denied: %s" % dt[0] if dt and d.get("denied", 0) > 0 else
 # non-interactive shell leave them ignored, which exec'd children inherit; the real
 # claude binary would then ignore `kill -INT`.
 hub_exec_worker() {
-  python3 -c 'import os,signal,sys; signal.signal(signal.SIGINT, signal.SIG_DFL); signal.signal(signal.SIGQUIT, signal.SIG_DFL); os.execvp(sys.argv[1], sys.argv[1:])' "$@"
+  exec python3 -c 'import os,signal,sys; signal.signal(signal.SIGINT, signal.SIG_DFL); signal.signal(signal.SIGQUIT, signal.SIG_DFL); os.execvp(sys.argv[1], sys.argv[1:])' "$@"
 }
 
 # hub_round <ticket> <prompt-file> — runs one worker round to completion in this shell.
