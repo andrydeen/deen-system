@@ -52,7 +52,8 @@ hub_build_cmd() {
   rules=$(sed "s/{{TICKET}}/$t/g" "$HUB_PLUGIN_ROOT/templates/worker-rules.md")
   HUB_CMD=(claude -p "$(cat "$pf")")
   if [ "$mode" = inline ]; then
-    HUB_CMD+=(--model "$model" --append-system-prompt-file "$HUB_PLUGIN_ROOT/agents/hub-worker.md")
+    [ -z "$model" ] || HUB_CMD+=(--model "$model")
+    HUB_CMD+=(--append-system-prompt-file "$HUB_PLUGIN_ROOT/agents/hub-worker.md")
   else
     HUB_CMD+=(--agent hub-worker)
     [ -z "$model" ] || HUB_CMD+=(--model "$model")
@@ -90,7 +91,8 @@ hub_finish_round() {
     *)
       off=$(cat "$run/events-offset" 2>/dev/null); off=${off:-0}
       tail -c +$((off + 1)) "$run/events.jsonl" > "$run/events-round.jsonl" 2>/dev/null
-      python3 "$HUB_LIB/events.py" final "$run/events-round.jsonl" > "$run/final.json"
+      python3 "$HUB_LIB/events.py" final "$run/events-round.jsonl" > "$run/final.json" 2>/dev/null
+      st=""; denied=0; note=""
       {
         IFS= read -r st
         IFS= read -r denied
@@ -101,21 +103,31 @@ d = json.load(open(sys.argv[1]))
 open(sys.argv[2], "w").write(d.get("text") or "")
 print(d.get("status", "unknown-report"))
 print(d.get("denied", 0))
-print(" ".join(str(d.get("note") or d.get("question") or "").split()))
-' "$run/final.json" "$run/report.md")
+dt = d.get("denied_tools") or []
+print("permission denied: %s" % dt[0] if dt and d.get("denied", 0) > 0 else
+      " ".join(str(d.get("note") or d.get("question") or "").split()))
+' "$run/final.json" "$run/report.md" 2>/dev/null)
+      if [ -z "$st" ]; then st=unknown-report; denied=0; note="report parse failed"; fi
       if [ "${denied:-0}" -gt 0 ]; then
         st=blocked
-        note="permission denied: $denied tool call(s)"
+        case "$note" in "permission denied:"*) ;; *) note="permission denied: $denied tool call(s)" ;; esac
       fi
       hub__tset "$t" status "$st"
       echo "exited $how" > "$run/status"
       date "+%Y-%m-%dT%H:%M:%S" > "$run/ended"
       rm -f -- "$run/pid"
       hub_slot_release "$t"
-      echo "$now $st $t $note" >> "$HUB_DIR/.runs/events.log"
+      echo "$now $st $t${note:+ $note}" >> "$HUB_DIR/.runs/events.log"
       hub_log "$t" "round ended: $st (exit $how)${note:+ — $note}"
       ;;
   esac
+}
+
+# hub_exec_worker <cmd...> — exec with default SIGINT/SIGQUIT. Async lists in a
+# non-interactive shell leave them ignored, which exec'd children inherit; the real
+# claude binary would then ignore `kill -INT`.
+hub_exec_worker() {
+  python3 -c 'import os,signal,sys; signal.signal(signal.SIGINT, signal.SIG_DFL); signal.signal(signal.SIGQUIT, signal.SIG_DFL); os.execvp(sys.argv[1], sys.argv[1:])' "$@"
 }
 
 # hub_round <ticket> <prompt-file> — runs one worker round to completion in this shell.
@@ -123,7 +135,7 @@ print(" ".join(str(d.get("note") or d.get("question") or "").split()))
 hub_round() {
   local t="$1" pf="$2" run="$HUB_DIR/.runs/$1" cwd path iso base repo main rn sid sidmode
   local slot rc retry=0 pid base_s soff eoff matched poll
-  HUB_LOCK_PID=$(sh -c 'echo $PPID'); export HUB_LOCK_PID
+  HUB_LOCK_PID=$(exec sh -c 'echo $PPID'); export HUB_LOCK_PID
   mkdir -p "$run" "$HUB_DIR/.runs/.slots"
   echo "$HUB_LOCK_PID" > "$run/pid"
 
@@ -142,7 +154,12 @@ hub_round() {
         main=$(hub__tget "$t" project)
         base=$(python3 "$HUB_LIB/tickets.py" projects | python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1],{}).get("main","main"))' "$main")
       fi
-      if ! git -C "$repo" worktree add -b "hub/$t" "$cwd" "$base" >"$run/worktree.log" 2>&1; then
+      if git -C "$repo" show-ref --verify --quiet "refs/heads/hub/$t"; then
+        git -C "$repo" worktree add "$cwd" "hub/$t" >"$run/worktree.log" 2>&1
+      else
+        git -C "$repo" worktree add -b "hub/$t" "$cwd" "$base" >"$run/worktree.log" 2>&1
+      fi
+      if [ $? -ne 0 ]; then
         echo failed > "$run/status"; rm -f -- "$run/pid"
         hub__tset "$t" status failed
         hub_log "$t" "worktree creation failed (see .runs/$t/worktree.log)"
@@ -174,20 +191,38 @@ hub_round() {
     if [ -f "$run/session-started" ]; then sidmode=resume; else sidmode=first; fi
     hub_build_cmd "$t" "$pf" "$sidmode"
     soff=$(wc -c < "$run/stderr.log" | tr -d ' '); eoff=$(wc -c < "$run/events.jsonl" | tr -d ' ')
-    ( cd "$cwd" && exec "${HUB_CMD[@]}" ) </dev/null >>"$run/events.jsonl" 2>>"$run/stderr.log" &
+    ( cd "$cwd" && hub_exec_worker "${HUB_CMD[@]}" ) </dev/null >>"$run/events.jsonl" 2>>"$run/stderr.log" &
     pid=$!
     echo "$pid" > "$run/pid"
     echo "$pid" > "$HUB_DIR/.runs/.slots/$slot/pid"
+    # Known gap: a first attempt that fails before the real binary creates a session
+    # makes --resume fail on retry ("No conversation found"). Future: detect that
+    # message and fall back to --session-id.
     touch "$run/session-started"
     wait "$pid"; rc=$?
+    echo "$HUB_LOCK_PID" > "$run/pid"
+    echo "$HUB_LOCK_PID" > "$HUB_DIR/.runs/.slots/$slot/pid"
     if [ -f "$run/interrupted" ]; then
       hub_finish_round "$t" interrupted
       return 0
     fi
     if [ "$rc" -ne 0 ] && [ "$retry" -lt 3 ]; then
       matched=0
-      { tail -c +$((soff + 1)) "$run/stderr.log"; tail -c +$((eoff + 1)) "$run/events.jsonl"; } \
-        | grep -E -q -i '408|429|5[0-9][0-9]|overloaded|rate.?limit|timed? ?out|ECONNRESET|socket hang up' && matched=1
+      tail -c +$((eoff + 1)) "$run/events.jsonl" > "$run/events-attempt.jsonl"
+      if ! python3 -c '
+import json, sys
+for l in open(sys.argv[1]):
+    try: o = json.loads(l)
+    except ValueError: continue
+    if isinstance(o, dict) and o.get("type") == "result":
+        sub = str(o.get("subtype") or "")
+        if sub == "error_max_turns" or "budget" in sub: sys.exit(1)
+' "$run/events-attempt.jsonl"; then
+        :
+      elif { tail -c +$((soff + 1)) "$run/stderr.log"; python3 "$HUB_LIB/events.py" errors "$run/events-attempt.jsonl"; } \
+          | grep -E -q -i '408|429|5[0-9][0-9]|overloaded|rate.?limit|timed? ?out|ECONNRESET|socket hang up'; then
+        matched=1
+      fi
       if [ "$matched" -eq 1 ]; then
         retry=$((retry + 1))
         echo "retrying $retry" > "$run/status"
@@ -216,6 +251,7 @@ cmd_dispatch() {
   python3 "$HUB_LIB/tickets.py" get "$t" status >/dev/null || hub_die "unknown ticket: $t"
   run="$HUB_DIR/.runs/$t"
   p=$(cat "$run/pid" 2>/dev/null)
+  # Note: two simultaneous dispatches of one ticket race here until Task 5's per-ticket lock covers it.
   if hub_pid_alive "$p"; then hub_die "$t is already running"; fi
   mkdir -p "$run"
   rn=$(cat "$run/round" 2>/dev/null); rn=$(( ${rn:-0} + 1 ))

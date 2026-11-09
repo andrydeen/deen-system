@@ -151,15 +151,22 @@ def parse_block(text):
 def final(ev):
     events, _ = read_events(ev)
     denied = 0
+    denied_tools = []
+    names = {}
     for obj, _ts in events:
+        for tu in tool_uses(obj):
+            if tu.get("id"):
+                names[tu["id"]] = tu.get("name") or "tool"
         if obj.get("type") != "user":
             continue
         for b in blocks(obj):
             if (b.get("type") == "tool_result" and b.get("is_error") is True
                     and text_of(b.get("content")).startswith(DENIED_PREFIX)):
                 denied += 1
+                denied_tools.append(names.get(b.get("tool_use_id"), "tool"))
     out = {"status": "unknown-report", "eval": "n/a", "files": [], "note": "",
-           "question": "", "cost_usd": 0.0, "text": "", "denied": denied}
+           "question": "", "cost_usd": 0.0, "text": "", "denied": denied,
+           "denied_tools": denied_tools}
     res = find_result(events)
     if res is None:
         out["note"] = "no result line"
@@ -181,6 +188,21 @@ def final(ev):
         return out
     out.update(parsed)
     return out
+
+
+def errors(ev):
+    """Error strings only: errors[] and a top-level error field of result/system lines."""
+    events, _ = read_events(ev)
+    out = []
+    for obj, _ts in events:
+        if obj.get("type") not in ("result", "system"):
+            continue
+        errs = obj.get("errors")
+        if isinstance(errs, list):
+            out.extend(e for e in errs if isinstance(e, str))
+        if isinstance(obj.get("error"), str):
+            out.append(obj["error"])
+    return [" ".join(e.split()) for e in out]
 
 
 def stats(ev, window_min):
@@ -216,6 +238,8 @@ def main(argv):
     a.add_argument("progress")
     b = sp.add_parser("final")
     b.add_argument("events")
+    e = sp.add_parser("errors")
+    e.add_argument("events")
     c = sp.add_parser("stats")
     c.add_argument("events")
     c.add_argument("--window-min", type=float, default=30)
@@ -227,6 +251,9 @@ def main(argv):
         print(now_doing(args.events, args.progress))
     elif args.cmd == "final":
         print(json.dumps(final(args.events), ensure_ascii=False, sort_keys=True))
+    elif args.cmd == "errors":
+        for line in errors(args.events):
+            print(line)
     elif args.cmd == "stats":
         print(json.dumps(stats(args.events, args.window_min), sort_keys=True))
     else:

@@ -84,7 +84,8 @@ test_dispatch_denied() {
   hub new --project demo --title "D" <<< 'b' >/dev/null || fail "new"
   FAKE_CLAUDE_EVENTS="$TESTS_DIR/fixtures/events-interrupted.jsonl" hub dispatch T-001 --wait || fail "dispatch"
   assert_eq blocked "$(hub ticket get T-001 status)" "status"
-  assert_grep "permission denied" "$(ls "$HUB_DIR"/tickets/T-001-*.md)"
+  assert_grep "permission denied: Write" "$(ls "$HUB_DIR"/tickets/T-001-*.md)"
+  last_line | grep -q 'blocked T-001 permission denied: Write$' || fail "events.log note: $(last_line)"
   last_line | grep -Eq 'blocked T-00' || fail "events.log: $(last_line)"
 }
 
@@ -105,11 +106,13 @@ test_dispatch_queue() {
   hub new --project demo --title "Q1" <<< 'b' >/dev/null || fail "new1"
   hub new --project demo --title "Q2" <<< 'b' >/dev/null || fail "new2"
   hub dispatch T-001 | grep -Eq '^dispatched T-001 round 1 pid [0-9]+$' || fail "dispatch output"
-  sleep 0.5
-  hub dispatch T-002 >/dev/null || fail "dispatch 2"
-  sleep 0.7
-  assert_eq queued "$(cat "$HUB_DIR/.runs/T-002/status")" "second queued"
   local i
+  for i in $(seq 1 50); do [ "$(cat "$HUB_DIR/.runs/T-001/status" 2>/dev/null)" = running ] && break; sleep 0.1; done
+  assert_eq running "$(cat "$HUB_DIR/.runs/T-001/status")" "T-001 running"
+  assert_eq T-001 "$(cat "$HUB_DIR/.runs/.slots/1/ticket")" "T-001 holds slot 1"
+  hub dispatch T-002 >/dev/null || fail "dispatch 2"
+  for i in $(seq 1 20); do [ "$(cat "$HUB_DIR/.runs/T-002/status" 2>/dev/null)" = queued ] && break; sleep 0.1; done
+  assert_eq queued "$(cat "$HUB_DIR/.runs/T-002/status")" "second queued"
   for i in $(seq 1 100); do
     [ "$(hub ticket get T-001 status)" = ready ] && [ "$(hub ticket get T-002 status)" = ready ] && break
     sleep 0.1
@@ -128,7 +131,54 @@ test_dispatch_retry() {
   assert_eq 1 "$(log_py 'print(int("--resume" in E[1]["argv"] and "--session-id" in E[0]["argv"]))')" "resume on retry"
 }
 
+test_dispatch_pid_alive_while_queued() {
+  setup_projects
+  export HUB_MAX_WORKERS=1 FAKE_CLAUDE_SLEEP=3 HUB_QUEUE_POLL_S=0.5
+  hub new --project demo --title "A1" <<< 'b' >/dev/null || fail "new1"
+  hub new --project demo --title "A2" <<< 'b' >/dev/null || fail "new2"
+  hub dispatch T-001 >/dev/null || fail "dispatch 1"
+  local i
+  for i in $(seq 1 50); do [ "$(cat "$HUB_DIR/.runs/T-001/status" 2>/dev/null)" = running ] && break; sleep 0.1; done
+  hub dispatch T-002 >/dev/null || fail "dispatch 2"
+  for i in $(seq 1 30); do [ "$(cat "$HUB_DIR/.runs/T-002/status" 2>/dev/null)" = queued ] && break; sleep 0.1; done
+  assert_eq queued "$(cat "$HUB_DIR/.runs/T-002/status")" "queued"
+  kill -0 "$(cat "$HUB_DIR/.runs/T-002/pid")" 2>/dev/null || fail "queued pid is dead"
+  local out
+  out=$(hub dispatch T-002 2>&1) && fail "second dispatch must fail"
+  echo "$out" | grep -q "already running" || fail "message: $out"
+  for i in $(seq 1 150); do
+    [ "$(hub ticket get T-001 status)" = ready ] && [ "$(hub ticket get T-002 status)" = ready ] && break
+    sleep 0.1
+  done
+  assert_eq ready "$(hub ticket get T-001 status)" "T-001 ready"
+  assert_eq ready "$(hub ticket get T-002 status)" "T-002 ready"
+  unset HUB_MAX_WORKERS FAKE_CLAUDE_SLEEP HUB_QUEUE_POLL_S
+}
+
+test_dispatch_no_retry_on_max_turns() {
+  setup_projects
+  printf '%s\n' '{"type":"result","subtype":"error_max_turns","result":null,"duration_ms":523,"total_cost_usd":0.5}' > "$TMP_ROOT/mt.jsonl"
+  hub new --project demo --title "M" <<< 'b' >/dev/null || fail "new"
+  FAKE_CLAUDE_EVENTS="$TMP_ROOT/mt.jsonl" FAKE_CLAUDE_EXIT=1 HUB_RETRY_BASE_S=0 hub dispatch T-001 --wait
+  assert_eq 1 "$(log_py 'print(len(E))')" "no retry"
+  assert_eq unknown-report "$(hub ticket get T-001 status)" "status"
+}
+
+test_worker_sigint_default() {
+  setup_projects
+  . "$PLUGIN_ROOT/scripts/lib/dispatch.sh"
+  ( hub_exec_worker python3 -c 'import signal; print(signal.getsignal(signal.SIGINT)!=signal.SIG_IGN)' > "$TMP_ROOT/sig" ) >/dev/null 2>&1 &
+  wait
+  assert_eq True "$(cat "$TMP_ROOT/sig")" "wrapper restores SIGINT"
+  ( python3 -c 'import signal; print(signal.getsignal(signal.SIGINT)!=signal.SIG_IGN)' > "$TMP_ROOT/sig2" ) >/dev/null 2>&1 &
+  wait
+  assert_eq False "$(cat "$TMP_ROOT/sig2")" "control: ignored without wrapper"
+}
+
 test_dispatch_none
+test_dispatch_pid_alive_while_queued
+test_dispatch_no_retry_on_max_turns
+test_worker_sigint_default
 test_dispatch_path_with_spaces
 test_dispatch_prompt_verbatim
 test_dispatch_unknown_report

@@ -18,6 +18,9 @@ assert_eq "10:02  checking IFs" "$($EV now-doing "$TMP/none.jsonl" "$TMP/progres
 $EV final "$FX/events-ready.jsonl" | pj "d['status']=='ready' and d['eval']=='green' and d['files']==['/p/a.xml (new)'] and d['cost_usd']==0.42 and d['note']=='' and d['question']=='' and d['denied']==0 and d['text'].endswith('Note: none')" || fail "final ready"
 $EV final "$FX/events-no-block.jsonl" | pj "d['status']=='unknown-report' and d['note']=='missing report block' and d['files']==[]" || fail "final no-block"
 $EV final "$FX/events-interrupted.jsonl" | pj "d['status']=='unknown-report' and d['note']=='error_during_execution: interrupted' and d['denied']==2 and d['eval']=='n/a' and d['cost_usd']==0.1" || fail "final interrupted"
+$EV final "$FX/events-interrupted.jsonl" | pj "d['denied_tools']==['Write','Bash']" || fail "denied_tools"
+assert_eq "interrupted" "$($EV errors "$FX/events-interrupted.jsonl")" "errors interrupted"
+assert_eq "" "$($EV errors "$FX/events-ready.jsonl")" "errors ready"
 $EV final "$TMP/no1" | pj "d['status']=='unknown-report' and d['note']=='no result line'" || fail "final no result"
 
 $EV stats "$FX/events-loop.jsonl" --window-min 30 | pj "d['edits_per_file']=={'/p/a.xml':9} and d['max_repeat_call']==11 and d['last_event_ts'].startswith('2026-11-09T16:28') and d['skipped']==0" || fail "stats loop"
