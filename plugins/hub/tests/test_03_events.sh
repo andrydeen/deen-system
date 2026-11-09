@@ -1,0 +1,28 @@
+. "$(dirname "$0")/helpers.sh"
+EV="python3 $PLUGIN_ROOT/scripts/lib/events.py"
+FX="$TESTS_DIR/fixtures"
+TMP="$(mktemp -d)"; trap 'rm -r -f -- "$TMP"' EXIT
+pj() { python3 -c "import json,sys; d=json.load(sys.stdin); assert $1, d"; }
+
+assert_eq "Edit /p/a.xml" "$($EV now-doing "$FX/events-ready.jsonl" "$TMP/none.log")" "now-doing tool"
+assert_eq "Bash: ls" "$($EV now-doing "$FX/events-no-block.jsonl" "$TMP/none.log")" "now-doing bash"
+assert_eq "" "$($EV now-doing "$TMP/no1" "$TMP/no2")" "both missing"
+cp "$FX/events-ready.jsonl" "$TMP/ev.jsonl"
+printf '10:01  start\n10:02  checking IFs\n' > "$TMP/progress.log"
+touch -t 202001010000 "$TMP/progress.log"
+assert_eq "Edit /p/a.xml" "$($EV now-doing "$TMP/ev.jsonl" "$TMP/progress.log")" "older progress loses"
+sleep 1; touch "$TMP/progress.log"
+assert_eq "10:02  checking IFs" "$($EV now-doing "$TMP/ev.jsonl" "$TMP/progress.log")" "newer progress wins"
+assert_eq "10:02  checking IFs" "$($EV now-doing "$TMP/none.jsonl" "$TMP/progress.log")" "only progress"
+
+$EV final "$FX/events-ready.jsonl" | pj "d['status']=='ready' and d['eval']=='green' and d['files']==['/p/a.xml (new)'] and d['cost_usd']==0.42 and d['note']=='' and d['question']=='' and d['denied']==0 and d['text'].endswith('Note: none')" || fail "final ready"
+$EV final "$FX/events-no-block.jsonl" | pj "d['status']=='unknown-report' and d['note']=='missing report block' and d['files']==[]" || fail "final no-block"
+$EV final "$FX/events-interrupted.jsonl" | pj "d['status']=='unknown-report' and d['note']=='error_during_execution: interrupted' and d['denied']==2 and d['eval']=='n/a' and d['cost_usd']==0.1" || fail "final interrupted"
+$EV final "$TMP/no1" | pj "d['status']=='unknown-report' and d['note']=='no result line'" || fail "final no result"
+
+$EV stats "$FX/events-loop.jsonl" --window-min 30 | pj "d['edits_per_file']=={'/p/a.xml':9} and d['max_repeat_call']==11 and d['last_event_ts'].startswith('2026-11-09T16:28') and d['skipped']==0" || fail "stats loop"
+$EV stats "$FX/events-loop.jsonl" --window-min 10 | pj "d['edits_per_file']=={'/p/a.xml':0} or d['edits_per_file']=={}" || fail "stats window"
+$EV stats "$FX/events-ready.jsonl" --window-min 30 | pj "d['cost_usd']==0.42 and d['edits_per_file']=={'/p/a.xml':1}" || fail "stats ready"
+printf 'not json\n{"type":"result","subtype":"success","result":"x"}\n' > "$TMP/bad.jsonl"
+$EV stats "$TMP/bad.jsonl" --window-min 30 | pj "d['skipped']==1" || fail "skipped"
+echo "PASS $0"
