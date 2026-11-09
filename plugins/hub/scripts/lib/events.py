@@ -188,7 +188,7 @@ def final(ev):
     out["cost_usd"] = float(res.get("total_cost_usd") or 0.0)
     text = res.get("result")
     out["text"] = text if isinstance(text, str) else ""
-    if res.get("is_error") is True:
+    if res.get("is_error") is True and out["text"].strip():
         # API-level failure (e.g. 529 overloaded): subtype says "success", the text is the error.
         first = out["text"].strip().splitlines()[0].strip() if out["text"].strip() else ""
         out["note"] = first or "api error %s" % res.get("api_error_status", "")

@@ -96,6 +96,9 @@ test_send_queues_during_restart() {
 test_stop() {
   setup_projects
   start_slow
+  local dout
+  dout=$(hub dispatch T-001 2>&1) && fail "dispatch of a live round must fail"
+  echo "$dout" | grep -q "T-001 is running (live round pid [0-9]*); use hub send for a follow-up or hub dispatch --again to re-run" || fail "live message: $dout"
   hub stop T-001 >/dev/null || fail "stop"
   wait_for 5 "no fake" no_fake
   assert_eq stopped "$(hub ticket get T-001 status)" "ticket status"
@@ -156,6 +159,16 @@ test_dispatch_refuses_ready() {
   assert_eq ready "$(hub ticket get T-001 status)" "status"
 }
 
+test_dispatch_running_dead_pid() {
+  setup_projects
+  hub new --project demo --files out.txt --title "RD" <<< 'brief' >/dev/null || fail "new"
+  hub set T-001 status running || fail "set"
+  mkdir -p "$(R)"; echo 999999 > "$(R)/pid"
+  hub dispatch T-001 --wait || fail "dispatch with dead pid must proceed"
+  assert_eq 1 "$(log_py 'print(len(E))')" "worker ran"
+  assert_eq ready "$(hub ticket get T-001 status)" "status"
+}
+
 test_stop_running_clears_pending() {
   setup_projects
   start_slow
@@ -173,6 +186,7 @@ test_send_idle
 test_stop_idle_keeps_status
 test_dispatch_refuses_ready
 test_stop_running_clears_pending
+test_dispatch_running_dead_pid
 test_send_after_manual_marker
 test_send_undispatched
 test_send_interrupts

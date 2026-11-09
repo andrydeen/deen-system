@@ -34,6 +34,7 @@ Subcommands:
   eval       evaluate a finished worker's result
   propose    propose a merge for a ticket
   merge      merge an approved ticket
+  approval   show or change an approval record's status
 
 Run 'hub --help' to see this list.
 HELP

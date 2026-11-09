@@ -28,6 +28,9 @@ $EV errors "$FX/events-api-error.jsonl" > "$TMP/apierr"
 grep -qx '529' "$TMP/apierr" || fail "errors lacks 529: $(cat "$TMP/apierr")"
 grep -q '^API Error: 529 overloaded' "$TMP/apierr" || fail "errors lacks text: $(cat "$TMP/apierr")"
 grep -qx 'overloaded_error' "$TMP/apierr" || fail "errors lacks assistant error: $(cat "$TMP/apierr")"
+# R3: is_error with no result text falls through to subtype + errors[]
+printf '%s\n' '{"type":"result","subtype":"error_during_execution","is_error":true,"result":null,"errors":["interrupted"]}' > "$TMP/iserr.jsonl"
+$EV final "$TMP/iserr.jsonl" | pj "d['status']=='unknown-report' and d['note']=='error_during_execution: interrupted'" || fail "is_error without text"
 # M7: a bolded report block inside a code fence still parses
 $EV final "$FX/events-fenced.jsonl" | pj "d['status']=='ready' and d['eval']=='green' and d['files']==['/p/a.xml (new)'] and d['note']==''" || fail "final fenced/bold"
 printf '%s\n' '{"type":"result","subtype":"success","result":"**Status:** maybe\nEval: n/a\nFiles: none\nNote: none"}' > "$TMP/badst.jsonl"

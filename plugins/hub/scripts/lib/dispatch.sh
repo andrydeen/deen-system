@@ -350,12 +350,16 @@ cmd_dispatch() {
   p=$(cat "$run/pid" 2>/dev/null)
   if hub_pid_alive "$p" || [ "$(cat "$run/status" 2>/dev/null)" = starting ]; then
     hub_unlock "$run/lock"
+    if [ "$tst" = running ] && [ -n "$p" ]; then
+      hub_die "$t is running (live round pid $p); use hub send for a follow-up or hub dispatch --again to re-run"
+    fi
     hub_die "$t is already running"
   fi
   # A fresh round only from a state that wants one; anything else is a misfire
-  # (a follow-up belongs to hub send) unless the human asked for a re-run.
+  # (a follow-up belongs to hub send) unless the human asked for a re-run. `running`
+  # reaches this point only without a live round (its pid is absent or dead).
   case "$tst" in
-    open|failed|stopped|unknown-report|blocked) ;;
+    open|failed|stopped|unknown-report|blocked|running) ;;
     *) if [ "$again" -eq 0 ]; then
          hub_unlock "$run/lock"
          hub_die "$t is $tst; use hub send for a follow-up or hub dispatch --again to re-run"

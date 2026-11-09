@@ -216,6 +216,14 @@ test_approval_transitions() {
   rc=0; hub approval T-001-1 approved >/dev/null 2>&1 || rc=$?
   assert_eq 1 "$rc" "bad status"
   [ -z "$(ls -A "$APPROVALS_DIR" | grep -v '^T-001-[12]\.md$')" ] || fail "stray files: $(ls -A "$APPROVALS_DIR")"
+  # records of the approval-gate skill (hex ids) go through the same command
+  printf -- '---\nid: ab12\nstatus: pending\ncreated: 2026-11-09 10:00\n---\n\n## Action\nx\n' > "$APPROVALS_DIR/ab12.md"
+  assert_eq "ab12: approved-executing" "$(hub approval ab12 approved-executing)" "gate id claim"
+  assert_eq "ab12: approved-executed" "$(hub approval ab12 approved-executed)" "gate id close"
+  assert_grep '^resolved: ' "$APPROVALS_DIR/ab12.md"
+  echo 'status: pending' > "$TMP_ROOT/x.md"
+  rc=0; hub approval '../x' >/dev/null 2>&1 || rc=$?
+  assert_eq 1 "$rc" "../x refused"
 }
 
 test_merge_worktree() {

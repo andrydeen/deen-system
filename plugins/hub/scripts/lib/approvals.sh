@@ -7,7 +7,9 @@
 cmd_approval() {
   local id="${1:-}" new="${2:-}" f out rc
   [ $# -le 2 ] && [ -n "$id" ] || hub_die "usage: hub approval <id> [approved-executing|approved-executed|rejected]"
-  printf '%s\n' "$id" | grep -Eqx 'T-[0-9]+-[0-9]+' || hub_die "approval: bad id: $id (expected T-NNN-N)"
+  # Any record in the approvals directory (hub's T-NNN-N or the approval-gate skill's hex
+  # ids); no '/' and no leading '.', so the path stays inside $APPROVALS_DIR.
+  printf '%s\n' "$id" | grep -Eqx '[A-Za-z0-9][A-Za-z0-9_.-]*' || hub_die "approval: bad id: $id"
   f="$APPROVALS_DIR/$id.md"
   [ -f "$f" ] || hub_die "approval: unknown id: $id"
   case "$new" in

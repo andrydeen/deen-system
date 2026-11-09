@@ -53,6 +53,7 @@ echo "mine" > "$HUB_DIR/CLAUDE.md"; hub init >/dev/null || fail "re-init"
 assert_grep "^mine$" "$HUB_DIR/CLAUDE.md"
 
 hub --help | grep -q watchdog || fail "help mentions watchdog"
+hub --help | grep -q 'approval' || fail "help mentions approval"
 grep -qF 'hub init' "$PLUGIN_ROOT/README.md" || fail "README hub init"
 grep -qF -- '--agent hub-router' "$PLUGIN_ROOT/README.md" || fail "README start command"
 n=$(wc -l < "$PLUGIN_ROOT/README.md" | tr -d ' '); [ "$n" -le 200 ] || fail "README too long: $n"
