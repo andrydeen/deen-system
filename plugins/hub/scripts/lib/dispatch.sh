@@ -351,7 +351,7 @@ cmd_dispatch() {
   if hub_pid_alive "$p" || [ "$(cat "$run/status" 2>/dev/null)" = starting ]; then
     hub_unlock "$run/lock"
     if [ "$tst" = running ] && [ -n "$p" ]; then
-      hub_die "$t is running (live round pid $p); use hub send for a follow-up or hub dispatch --again to re-run"
+      hub_die "$t is running (live round pid $p); use hub send for a follow-up, or hub stop first"
     fi
     hub_die "$t is already running"
   fi
@@ -362,7 +362,7 @@ cmd_dispatch() {
     open|failed|stopped|unknown-report|blocked|running) ;;
     *) if [ "$again" -eq 0 ]; then
          hub_unlock "$run/lock"
-         hub_die "$t is $tst; use hub send for a follow-up or hub dispatch --again to re-run"
+         hub_die "$t is $tst; use hub send for a follow-up, or hub stop first"
        fi ;;
   esac
   rn=$(cat "$run/round" 2>/dev/null); rn=$(( ${rn:-0} + 1 ))

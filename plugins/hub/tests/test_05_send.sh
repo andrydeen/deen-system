@@ -98,7 +98,7 @@ test_stop() {
   start_slow
   local dout
   dout=$(hub dispatch T-001 2>&1) && fail "dispatch of a live round must fail"
-  echo "$dout" | grep -q "T-001 is running (live round pid [0-9]*); use hub send for a follow-up or hub dispatch --again to re-run" || fail "live message: $dout"
+  echo "$dout" | grep -q "T-001 is running (live round pid [0-9]*); use hub send for a follow-up, or hub stop first" || fail "live message: $dout"
   hub stop T-001 >/dev/null || fail "stop"
   wait_for 5 "no fake" no_fake
   assert_eq stopped "$(hub ticket get T-001 status)" "ticket status"
@@ -152,7 +152,7 @@ test_dispatch_refuses_ready() {
   local out rc=0
   out=$(hub dispatch T-001 2>&1) || rc=$?
   assert_eq 1 "$rc" "exit"
-  echo "$out" | grep -qF 'T-001 is ready; use hub send for a follow-up or hub dispatch --again to re-run' || fail "message: $out"
+  echo "$out" | grep -qF 'T-001 is ready; use hub send for a follow-up, or hub stop first' || fail "message: $out"
   assert_eq 1 "$(log_py 'print(len(E))')" "no second worker"
   hub dispatch T-001 --again --wait || fail "--again"
   assert_eq 2 "$(log_py 'print(len(E))')" "--again runs"
