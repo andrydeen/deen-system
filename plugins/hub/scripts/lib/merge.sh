@@ -41,7 +41,9 @@ hub__ts() { python3 "$HUB_LIB/tickets.py" set "$1" "$2" "$3"; }
 
 # hub__merging <dir> — succeeds when a merge is in progress in that checkout.
 hub__merging() {
-  [ -n "$(git -C "$1" rev-parse -q --verify MERGE_HEAD 2>&1)" ]
+  local h
+  h=$(git -C "$1" rev-parse -q --verify MERGE_HEAD)
+  [ $? -eq 0 ] && [ -n "$h" ]
 }
 
 # hub eval <ticket>
@@ -147,8 +149,10 @@ cmd_propose() {
       )
       # noclobber: a concurrent propose that took this number makes the write fail; try the next one.
       if ( set -C; printf '%s\n' "$body" > "$f" ) 2>/dev/null; then break; fi
+      [ -e "$f" ] || hub_die "propose: cannot write $f"
     fi
     n=$((n + 1))
+    [ "$n" -le 1000 ] || hub_die "propose: too many approval records for $t"
   done
   short=$(printf '%s' "$rec" | awk '{for(i=1;i<=NF;i++){if(++c>100)exit; printf "%s%s",(c>1?" ":""),$i}}')
   line="🔐 Approval needed [$id] — $short. Reply: yes T-$((10#${t#T-})) · approve $id · reject $id"
@@ -213,6 +217,7 @@ cmd_merge() {
     rc=0
     cmd_eval "$t" || rc=$?
     [ "$rc" -eq 0 ] || exit 1
+    if hub__merging "$repo"; then hub_die "merge: $repo has a merge in progress; nothing merged"; fi
     if ! mout=$(hub_git "$repo" merge --no-ff -m "merge hub/$t: $title" "hub/$t" 2>&1); then
       if hub__merging "$repo"; then hub_git "$repo" merge --abort; fi
       hub_die "merge: merging hub/$t into $main failed: $mout"

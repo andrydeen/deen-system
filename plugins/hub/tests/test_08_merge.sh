@@ -337,7 +337,42 @@ test_eval_set_keeps_log() {
   return 0
 }
 
+test_propose_unwritable_dir() {
+  setup_both
+  hub new --project demo --title "U" <<< 'b' >/dev/null || fail "new"
+  hub ticket set T-001 status ready
+  trap 'chmod 755 "$APPROVALS_DIR"; stub_cleanup; cleanup' EXIT
+  chmod 555 "$APPROVALS_DIR"
+  local out rc=0 t0 t1
+  t0=$(date +%s)
+  out=$(hub propose T-001 "x" --no-telegram 2>&1) || rc=$?
+  t1=$(date +%s)
+  chmod 755 "$APPROVALS_DIR"
+  trap 'stub_cleanup; cleanup' EXIT
+  assert_eq 1 "$rc" "exit"
+  echo "$out" | grep -q 'cannot write' || fail "message: $out"
+  [ $((t1 - t0)) -le 2 ] || fail "took $((t1 - t0)) s"
+}
+
+test_eval_kill_fallback() {
+  setup_both
+  hub new --project demo --title "K9" <<< 'b' >/dev/null || fail "new"
+  hub ticket eval-set T-001 "trap '' TERM; sleep 10" || fail "eval-set"
+  local out rc=0 t0 t1
+  t0=$(date +%s)
+  out=$(HUB_EVAL_TIMEOUT_S=1 hub eval T-001) || rc=$?
+  t1=$(date +%s)
+  assert_eq 1 "$rc" "exit"
+  assert_eq red "$(echo "$out" | head -n 1)" "red"
+  echo "$out" | grep -q 'timed out' || fail "no timed out: $out"
+  [ $((t1 - t0)) -le 5 ] || fail "took $((t1 - t0)) s"
+  pgrep -f 'sleep 10' | grep -q . && fail "sleep left behind"
+  return 0
+}
+
 test_eval_green_red
+test_propose_unwritable_dir
+test_eval_kill_fallback
 test_eval_timeout
 test_merge_in_progress_merge
 test_merge_none_literal_pathspec
